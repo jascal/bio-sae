@@ -1,0 +1,13 @@
+bundle: data/bio_bundle.safetensors
+
+feeds: [residue, pooled]
+variants: [topk, jumprelu, l1]
+widths: [1024, 4096]
+k_values: [32, 64]
+sparsity_lambdas: [1.0e-3, 3.0e-3]
+
+epochs: 200
+batch_size: 4096
+lr: 1.0e-3
+seed: 0
+device: cuda

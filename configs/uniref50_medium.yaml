@@ -1,0 +1,30 @@
+# Real-biology bundle at n=1000 UniRef50 representatives — large enough for
+# statistically meaningful hierarchical (GO/Pfam/EC) recovery. UniProt cache
+# from the n=100 run will hit on ~100 accessions; the rest require fresh
+# REST fetches (10 batches of 100).
+model_id: facebook/esm2_t6_8M_UR50D
+layers: [6]
+pooling: mean
+max_length: 512
+dtype: float32
+device: cpu
+seed: 0
+
+sources:
+  uniref50:
+    n: 1000
+    max_stream: 50000
+
+label_tiers:
+  - categorical
+  - hierarchical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural
+
+annotate:
+  use_uniprot: true
+  use_local_hmmscan: false
+  expand_go_ancestors: true
+  expand_ec_hierarchy: true

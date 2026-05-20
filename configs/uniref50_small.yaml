@@ -1,0 +1,30 @@
+# Small real-biology bundle: 100 UniRef50 representatives → ESM-2 t6_8M layer 6
+# → UniProt annotation → GO ancestor expansion → EC hierarchy expansion.
+# Caps the UniRef stream at 5000 clusters so reservoir sampling doesn't drain
+# the full 60M+ entries on a laptop.
+model_id: facebook/esm2_t6_8M_UR50D
+layers: [6]
+pooling: mean
+max_length: 512
+dtype: float32
+device: cpu
+seed: 0
+
+sources:
+  uniref50:
+    n: 100
+    max_stream: 5000
+
+label_tiers:
+  - categorical
+  - hierarchical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural
+
+annotate:
+  use_uniprot: true
+  use_local_hmmscan: false
+  expand_go_ancestors: true
+  expand_ec_hierarchy: true

@@ -1,0 +1,21 @@
+# Pure synthetic substrate — no real proteins. Useful as a sanity floor:
+# every feature here is known by construction, so an SAE that fails on this
+# bundle is broken, not bottlenecked by noisy biology labels.
+model_id: facebook/esm2_t6_8M_UR50D
+layers: [6]
+pooling: mean
+max_length: 320
+dtype: float32
+device: cpu
+seed: 0
+
+sources:
+  synthetic:
+    n: 5000
+
+label_tiers:
+  - categorical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural

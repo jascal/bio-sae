@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bio-sae"
+version = "0.0.1"
+description = "Protein language model activations as a tensor bundle with rich biological ground truth, used as a benchmark substrate for SAE interpretability research."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Allan Scott" }]
+keywords = [
+  "sparse-autoencoder",
+  "interpretability",
+  "protein-language-model",
+  "esm2",
+  "structural-biology",
+  "protein-folding",
+  "polygram",
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+  "numpy>=1.24,<2",
+  "torch>=2.0",
+  "safetensors>=0.4",
+  "transformers>=4.40",
+  "tokenizers>=0.19",
+  "biopython>=1.83",
+  "einops>=0.7",
+  "pandas>=2.0",
+  "pyarrow>=14",
+  "pyyaml>=6",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+labels = [
+  "goatools>=1.3",
+  "obonet>=1.0",
+  "requests>=2.31",
+]
+structure = [
+  # DSSP/stride bindings, contact map utilities. ESMFold is loaded via transformers.
+  "mdtraj>=1.9; platform_system != 'Windows'",
+]
+polygram = [
+  "polygram @ git+https://github.com/jascal/polygram.git@v0.10.0",
+]
+forge = [
+  # Pinned to the post-0.7.0 commit that bumps polygram to 0.10 and ships
+  # the Llama-family RoPE fix. No git tag yet for the 0.7.x line.
+  "sae-forge @ git+https://github.com/jascal/sae-forge.git@987c9b1",
+]
+viz = [
+  "matplotlib>=3.7",
+  "seaborn>=0.13",
+]
+dev = [
+  "pytest>=7",
+  "pytest-cov>=4",
+  "ruff>=0.4",
+  "mypy>=1.8",
+]
+
+[project.scripts]
+bio-sae-build-data       = "scripts.build_protein_data:main"
+bio-sae-train            = "scripts.train_protein_saes:main"
+bio-sae-evaluate         = "scripts.evaluate:main"
+bio-sae-polygram-demo    = "scripts.polygram_demo:main"
+bio-sae-forge            = "scripts.forge_pipeline:main"
+bio-sae-sweep-widths     = "scripts.sweep_widths:main"
+bio-sae-sweep-layers     = "scripts.sweep_layers:main"
+bio-sae-synthetic-floor  = "scripts.synthetic_floor_experiment:main"
+bio-sae-positional       = "scripts.positional_experiment:main"
+bio-sae-intervention     = "scripts.intervention_experiment:main"
+bio-sae-visualize        = "scripts.visualize:main"
+
+[project.urls]
+Homepage = "https://github.com/jascal/bio-sae"
+
+[tool.setuptools]
+packages = [
+  "biosae",
+  "biosae.proteins",
+  "biosae.labels",
+  "biosae.sae",
+]
+
+[tool.setuptools.package-data]
+biosae = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM"]
+ignore = ["E501"]

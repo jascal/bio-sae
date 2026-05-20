@@ -1,0 +1,30 @@
+# Full-scale ESM-2 (33 layers, 650M params), mid-stack activations.
+# Recommended GPU memory: 24GB+ for max_length=1024.
+model_id: facebook/esm2_t33_650M_UR50D
+layers: [24]
+pooling: mean
+max_length: 1024
+dtype: float16
+device: cuda
+seed: 0
+
+sources:
+  synthetic:
+    n: 2000
+  uniref50:
+    n: 20000
+
+label_tiers:
+  - categorical
+  - hierarchical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural
+
+annotate:
+  use_uniprot: true           # fetch GO/Pfam/EC from UniProt REST (cached)
+  use_local_hmmscan: false    # set true if hmmscan + Pfam-A.hmm are present
+  expand_go_ancestors: true   # propagate to GO ancestors so the hierarchy is visible
+  expand_ec_hierarchy: true   # add "1", "1.2", "1.2.3" prefixes to each EC leaf
+  # go_obo: /path/to/go-basic.obo  # uncomment to use a pre-downloaded OBO

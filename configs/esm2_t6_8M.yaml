@@ -1,0 +1,21 @@
+# Small ESM-2 (6 layers, 8M params) for fast iteration on a laptop.
+model_id: facebook/esm2_t6_8M_UR50D
+layers: [6]
+pooling: mean
+max_length: 512
+dtype: float16
+device: cpu
+seed: 0
+
+sources:
+  synthetic:
+    n: 2000
+  # uniref50:
+  #   n: 5000
+
+label_tiers:
+  - categorical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural
