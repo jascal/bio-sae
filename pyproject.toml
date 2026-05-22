@@ -57,7 +57,7 @@ polygram = [
   "polygram @ git+https://github.com/jascal/polygram.git@v0.15.0",
 ]
 forge = [
-  "sae-forge @ git+https://github.com/jascal/sae-forge.git@v0.8.1",
+  "sae-forge @ git+https://github.com/jascal/sae-forge.git@v0.10.0",
 ]
 viz = [
   "matplotlib>=3.7",

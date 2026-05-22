@@ -1,0 +1,29 @@
+# Real-biology bundle at n=5000 — 5× the prior run. Targets statistically
+# robust hierarchical recovery: mid-prevalence GO terms (n_pos ≈ 50-200)
+# become a usable population for AUC scoring.
+model_id: facebook/esm2_t6_8M_UR50D
+layers: [6]
+pooling: mean
+max_length: 512
+dtype: float32
+device: cpu
+seed: 0
+
+sources:
+  uniref50:
+    n: 10000
+    max_stream: 100000   # same reservoir cap as n=1000; sample rate 10%
+
+label_tiers:
+  - categorical
+  - hierarchical
+  - positional
+  - synthetic
+  - conjunctive
+  - structural
+
+annotate:
+  use_uniprot: true
+  use_local_hmmscan: false
+  expand_go_ancestors: true
+  expand_ec_hierarchy: true
