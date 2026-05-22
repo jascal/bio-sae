@@ -1,8 +1,10 @@
-"""SAE trainer dispatch.
+"""SAE trainer for bio-sae.
 
-Prefers `sae-forge` when available (uniform across sm-sae / econ-sae /
-bio-sae). Falls back to a minimal reference implementation so the
-package is usable standalone.
+A minimal reference implementation; sae-forge does not expose an
+SAE-training API (it consumes pre-trained SAEs and forges transformers
+from them), so the historical ``_try_forge`` dispatch was always dead
+code. See ``scripts/forge_pipeline.py`` for the actual sae-forge entry
+point (basis → projector → ForgePipeline).
 
 Variants supported:
     - "topk"      TopK SAE (Anthropic / OpenAI style)
@@ -33,7 +35,7 @@ class SAEConfig:
 
 
 class _ReferenceSAE(nn.Module):
-    """Minimal SAE used when sae-forge is not installed."""
+    """Minimal reference SAE — the only trainer bio-sae ships."""
 
     def __init__(self, d_in: int, cfg: SAEConfig):
         super().__init__()
@@ -60,20 +62,6 @@ class _ReferenceSAE(nn.Module):
         return self.decoder(z), z
 
 
-def _try_forge(d_in: int, cfg: SAEConfig):
-    try:
-        import saeforge  # type: ignore
-    except ImportError:
-        return None
-    builder = getattr(saeforge, "build_sae", None)
-    if builder is None:
-        return None
-    return builder(
-        d_in=d_in, width=cfg.width, variant=cfg.variant,
-        k=cfg.k, sparsity_lambda=cfg.sparsity_lambda,
-    )
-
-
 def train_sae(
     X: torch.Tensor,
     cfg: SAEConfig,
@@ -84,7 +72,7 @@ def train_sae(
     X = X.to(device=device, dtype=torch.float32)
     d_in = X.shape[-1]
 
-    sae = _try_forge(d_in, cfg) or _ReferenceSAE(d_in, cfg)
+    sae = _ReferenceSAE(d_in, cfg)
     sae = sae.to(device)
     opt = torch.optim.Adam(sae.parameters(), lr=cfg.lr)
 

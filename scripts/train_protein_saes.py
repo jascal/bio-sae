@@ -5,9 +5,9 @@ pooled activation feeds in `data/bio_bundle.safetensors`, scores them
 against the ground-truth vocabulary, and writes per-run artifacts under
 `runs/<bundle>__<variant>_w<width>_k<k>/`.
 
-Delegates the actual trainer implementations to `sae-forge` when it is
-installed; otherwise falls back to the lightweight reference trainers
-in `biosae.sae.trainers`.
+Uses the reference trainers in `biosae.sae.trainers`. sae-forge does
+not expose an SAE-training API; it consumes pre-trained SAEs and
+forges transformers from them (see `scripts/forge_pipeline.py`).
 
 Usage:
     python scripts/train_protein_saes.py --config configs/sae_topk_default.yaml

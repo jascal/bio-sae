@@ -724,17 +724,75 @@ biologically-coherent functional clusters on bio-sae without one.
 That's a stronger validation of polygram 0.10.0's expert-routing
 path than either repo could produce alone.
 
-#### sae-forge status
+#### sae-forge status — ESM-2 adapter shipped (Phase 0+)
 
-Pinned to 0.6.0 (post-0.7.0 commit `987c9b1`, includes the
-host-wrapped KL fix). `_try_forge` dispatcher in
-`biosae/sae/trainers.py` checks for the build_sae symbol but it has
-**never been invoked** in any of the runs in this README — every SAE
-was trained by the reference fallback path. The `forge_pipeline.py`
-script wires build + train + score but never runs sae-forge's
-ForgePipeline / NativeModel / host_wrapped pathways. That's a major
-unexercised surface; sketched in the "Untouched module paths" list
-above.
+**Update (2026-05-21):** sae-forge v0.7.0 ships an `esm2`
+architecture adapter (PR upstream). bio-sae now drives the full
+`ForgePipeline` end-to-end against `facebook/esm2_t6_8M_UR50D`:
+
+| step                                       | wired via                                                          |
+|--------------------------------------------|--------------------------------------------------------------------|
+| bio-sae SAE → polygram safetensors layout  | `scripts/forge_pipeline.py::_emit_polygram_sae_checkpoint`         |
+| sliced SAE → `saeforge.FeatureBasis`       | `scripts/forge_pipeline.py::_basis_from_polygram_layout`           |
+| FeatureBasis → forged ESM-2 transformer    | `saeforge.ForgePipeline` + `Esm2Adapter` (upstream)                |
+| per-residue cosine faithfulness            | `saeforge.eval.targets.TokenCosineTarget` (upstream, new)          |
+
+**First end-to-end ESM-2 forge** (n=16 features sliced from
+`runs/uniref50_small/residue`, basis_n_features=16, d_model=320,
+host=`esm2_t6_8M_UR50D`, 4 short protein prompts on CPU):
+
+| n_features (sliced) | forge n_params | token_cosine | wall (s) |
+|---------------------|----------------|--------------|----------|
+| 16                  | 383 k          | −0.535       | 5.9      |
+| 256                 | 5.93 M         |  0.095       | 6.0      |
+
+Cosine is negative at extreme under-completeness (16 of 320 features)
+and rises as basis coverage grows — exactly the rank-dependent
+amplification documented in sae-forge's algorithm.md §5. The pipeline
+itself is fully wired; a real research run would use a
+polygram-compressed basis at the SAE's full width (1024+ features).
+
+**Dead `_try_forge` dispatcher removed.** The historical
+`_try_forge(d_in, cfg)` call in `biosae/sae/trainers.py` looked for a
+`saeforge.build_sae` symbol that doesn't exist (sae-forge consumes
+pre-trained SAEs and forges transformers; it does not expose an SAE-
+training API). The reference trainer path is now the only path —
+matches what every README run was actually using anyway.
+
+**polygram encoding_partition (v0.14.0).** Exercised via
+`scripts/polygram_partition_demo.py` on bio-sae's tiered vocabulary.
+Builds one `BlockSpec` per tier (categorical / hierarchical /
+synthetic → `Rung5`; positional / structural → `MPSRung1`),
+validates disjointness + completeness via
+`polygram.compression.validate_partition_coverage`, and plumbs the
+partition through `CompressionConfig`. The Compressor.apply step is
+NOT run — per
+[wave-c-partition-forge-side-unproven](https://github.com/jascal/polygram/openspec)
+the forge-side payoff of per-block encoding is currently unproven, so
+running the full compression here would exercise polygram's
+substrate-cost-reduction path but not produce a measurable
+downstream signal.
+
+**Full polygram → sae-forge chain validated.** As of polygram
+v0.15.0, `EpochCompressor` / `Regrower` / `BehaviouralValidator` use
+`polygram.behavioural.runtime._load_host_model` — the same
+AutoModelForCausalLM → AutoModelForMaskedLM fallback dispatcher
+sae-forge uses. `scripts/forge_pipeline.py --mode polygram` works
+end-to-end against `facebook/esm2_t6_8M_UR50D`.
+
+Smoke run (n=16 sliced features, 4 short prompts, layer 5 = final
+block, max_iterations=1):
+
+| step                          | wall (s) | output                             |
+|-------------------------------|----------|------------------------------------|
+| polygram EpochCompressor      |   7.2    | zeroed 5/16 → 11 kept features     |
+| sae-forge ForgePipeline       |   0.9    | ForgedEsm2 with 267 661 params     |
+| token_cosine faithfulness     |   —      | −0.598 (rank-dependent amp. at f=11) |
+
+The cosine number is poor because the 16/320 slice underdetermines
+the basis (same rank-dependent amplification documented in
+`--mode direct`); the value of this run is **proving the chain wires
+end-to-end on the bio-sae substrate**, not its absolute faithfulness.
 
 #### Bugs found during the first run
 

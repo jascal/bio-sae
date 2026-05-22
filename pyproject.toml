@@ -54,12 +54,10 @@ structure = [
   "mdtraj>=1.9; platform_system != 'Windows'",
 ]
 polygram = [
-  "polygram @ git+https://github.com/jascal/polygram.git@v0.12.0",
+  "polygram @ git+https://github.com/jascal/polygram.git@v0.15.0",
 ]
 forge = [
-  # Pinned to the post-0.7.0 commit that bumps polygram to 0.10 and ships
-  # the Llama-family RoPE fix. No git tag yet for the 0.7.x line.
-  "sae-forge @ git+https://github.com/jascal/sae-forge.git@987c9b1",
+  "sae-forge @ git+https://github.com/jascal/sae-forge.git@v0.7.0",
 ]
 viz = [
   "matplotlib>=3.7",
