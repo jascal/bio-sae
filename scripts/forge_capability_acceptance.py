@@ -50,9 +50,12 @@ _REGIMES = {
         "min_prevalence":  10,
         "sae_k":           64,
         "widths":          [16, 64, 128, 256, 512, 1024],
+        "default_feed":    "pooled",
         "writeup_note":    (
-            "Bio-sae writeup §3.2: optimal n=512, retained_mauc=0.932, "
-            "retained_cov95=0.162 (over 500 proteins, min_n_pos≥10)."
+            "Bio-sae writeup §3.2: optimal n=512, retained_mauc≈0.932, "
+            "retained_cov95≈0.162 (500 proteins, min_n_pos≥10). The "
+            "uniform-tax regime — biology is partially preserved at "
+            "every width but never recovers to host."
         ),
     },
     "residue": {
@@ -64,14 +67,16 @@ _REGIMES = {
         "min_prevalence":  0,
         "sae_k":           32,
         "widths":          [16, 64, 128, 256, 512, 1024],
+        "default_feed":    "residue",
         "writeup_note":    (
-            "Bio-sae writeup §3.1: optimal n=16, retained_mauc=1.032, "
-            "retained_cov95=0.900 — BUT that measurement used the "
-            "residue feed which sweep_pareto_capability v0.8.0 does "
-            "not yet support. This script runs pooled-feed scoring "
-            "against the residue SAE (a different evaluation axis); "
-            "compare against the residue-feed measurement at "
-            "runs/forge/capability_eval_smoke/."
+            "Bio-sae writeup §3.1: optimal n=16, retained_mauc≈1.032, "
+            "retained_cov95≈0.900 (10 proteins, residue feed). The "
+            "denoising regime — forge BEATS host because slicing weak "
+            "features removes fuzzy signal the SAE was reading on host. "
+            "Reproduced at n=100 proteins via sae-forge v0.8.1's "
+            "feed='residue' support: peak retained_mauc 1.045 at n=48, "
+            "9/11 cells across n∈[8,128] beat host. See "
+            "runs/forge/acceptance_residue_n100/acceptance_summary.json."
         ),
     },
 }
@@ -87,10 +92,40 @@ def main(argv: list[str] | None = None) -> int:
         "--output", type=Path, default=None,
         help="Override the default output directory.",
     )
+    parser.add_argument(
+        "--n-proteins", type=int, default=None,
+        help="Override the regime's default n_proteins. Higher values "
+             "give tighter AUC estimates at the cost of wall-time "
+             "(linear in protein count).",
+    )
+    parser.add_argument(
+        "--widths", default=None,
+        help="Override the regime's default sweep widths (comma-separated).",
+    )
+    parser.add_argument(
+        "--feed", choices=("pooled", "residue"), default=None,
+        help="Override the regime's default feed.",
+    )
+    parser.add_argument(
+        "--scale-boosts", default="1.0,auto",
+        help="Comma-separated scale_boost values (default: '1.0,auto').",
+    )
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args(argv)
 
-    cfg = _REGIMES[args.regime]
+    cfg = dict(_REGIMES[args.regime])  # copy so per-run overrides don't mutate
+    if args.n_proteins is not None:
+        cfg["n_proteins"] = args.n_proteins
+    if args.widths is not None:
+        cfg["widths"] = [int(w.strip()) for w in args.widths.split(",") if w.strip()]
+    feed = args.feed or _REGIMES[args.regime].get("default_feed", "pooled")
+    scale_boosts: list[float | str] = []
+    for token in args.scale_boosts.split(","):
+        t = token.strip()
+        if not t:
+            continue
+        scale_boosts.append("auto" if t == "auto" else float(t))
+
     output_dir = args.output or (REPO_ROOT / "runs" / "forge" / f"acceptance_{args.regime}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -114,13 +149,13 @@ def main(argv: list[str] | None = None) -> int:
         run_dir=cfg["run_dir"],
         bundle_path=cfg["bundle"],
         sequences_path=cfg["sequences"],
-        feed="pooled",
+        feed=feed,
         n_proteins=cfg["n_proteins"],
         max_seq_len=cfg["max_seq_len"],
         min_prevalence=cfg["min_prevalence"],
         sae_k=cfg["sae_k"],
     )
-    print(f"dataset: {len(dataset.sequences)} sequences, "
+    print(f"dataset: feed={feed}, {len(dataset.sequences)} sequences, "
           f"labels {dataset.labels.shape}, encoder latent_width "
           f"{dataset.metadata['sae_latent_width']}\n")
 
@@ -129,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         host_model_id="facebook/esm2_t6_8M_UR50D",
         dataset=dataset,
         widths=cfg["widths"],
-        scale_boosts=[1.0, "auto"],
+        scale_boosts=scale_boosts,
         output_dir=output_dir,
         cache_host=True,
         device=args.device,
@@ -158,17 +193,76 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
     )
     if best is not None:
+        def _fmt(value):
+            """Pretty-print a possibly-None float for the headline block."""
+            return "None" if value is None else f"{value:.4f}"
         print(f"\n=== peak ===")
         print(f"  target_n_features_kept: {best.target_n_features_kept}")
-        print(f"  retained_mauc_vs_host:  {best.retained_mauc_vs_host:.4f}")
-        print(f"  retained_cov95_vs_host: {best.retained_cov95_vs_host:.4f}")
-        print(f"  forge_mauc:             {best.forge_mauc:.4f}")
+        print(f"  retained_mauc_vs_host:  {_fmt(best.retained_mauc_vs_host)}")
+        print(f"  retained_cov95_vs_host: {_fmt(best.retained_cov95_vs_host)}")
+        print(f"  forge_mauc:             {_fmt(best.forge_mauc)}")
+        print(f"  host_baseline_mauc:     {_fmt(best.host_baseline_mauc)}")
+
+        # === "Forge better than base" headline ===
+        # Bio-sae writeup §3.1 prediction: forge can EXCEED host on
+        # concentrated substrates because slicing weak features
+        # denoises the SAE's reads (it was treating those features
+        # as fuzzy signal on host). Count and characterise rows
+        # where retained_mauc > 1.0.
+        forge_beats_host = [
+            r for r in rows
+            if r.error_message is None
+            and r.retained_mauc_vs_host is not None
+            and r.retained_mauc_vs_host > 1.0
+        ]
+        print(f"\n=== forge > host ===")
+        if forge_beats_host:
+            best_advantage = max(
+                forge_beats_host,
+                key=lambda r: r.retained_mauc_vs_host,
+            )
+            print(f"  {len(forge_beats_host)}/{sum(1 for r in rows if r.error_message is None)} "
+                  f"cells beat host baseline.")
+            print(f"  Max advantage: n={best_advantage.target_n_features_kept}, "
+                  f"retained_mauc={best_advantage.retained_mauc_vs_host:.4f} "
+                  f"(+{(best_advantage.retained_mauc_vs_host - 1.0) * 100:.1f}% over host).")
+            print(f"  All winning cells:")
+            for r in sorted(forge_beats_host, key=lambda r: -r.retained_mauc_vs_host):
+                print(f"    n={r.target_n_features_kept:>4d}  "
+                      f"retained_mauc={r.retained_mauc_vs_host:.4f}  "
+                      f"forge_mauc={r.forge_mauc:.4f}  "
+                      f"host={r.host_baseline_mauc:.4f}")
+        else:
+            print(f"  No cells beat host (peak retained_mauc = "
+                  f"{best.retained_mauc_vs_host:.4f}). Suggests the "
+                  f"denoising regime hasn't kicked in for this "
+                  f"fixture / feed / width grid; try smaller n or "
+                  f"a feed that exposes per-residue strong-feature "
+                  f"signal more sharply.")
+
         summary = {
             "regime": args.regime,
+            "feed": feed,
+            "n_proteins": cfg["n_proteins"],
+            "widths": cfg["widths"],
             "peak_n": best.target_n_features_kept,
             "peak_retained_mauc": best.retained_mauc_vs_host,
             "peak_retained_cov95": best.retained_cov95_vs_host,
             "peak_forge_mauc": best.forge_mauc,
+            "host_baseline_mauc": best.host_baseline_mauc,
+            "n_cells_forge_beats_host": len(forge_beats_host),
+            "max_advantage_over_host": (
+                max((r.retained_mauc_vs_host or 0.0) for r in forge_beats_host) - 1.0
+                if forge_beats_host else 0.0
+            ),
+            "winning_cells": [
+                {
+                    "n": r.target_n_features_kept,
+                    "retained_mauc": r.retained_mauc_vs_host,
+                    "forge_mauc": r.forge_mauc,
+                }
+                for r in forge_beats_host
+            ],
             "writeup_note": cfg["writeup_note"],
         }
         (output_dir / "acceptance_summary.json").write_text(json.dumps(summary, indent=2))
