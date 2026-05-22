@@ -186,6 +186,124 @@ indexed by (encoding, target_n_features_kept) with cosine /
 faithfulness-KL metrics. Bio-sae's data shows that's an
 under-specified Pareto for capability-bound applications.
 
+## 5.5 Partition encoding partially closes the spread-regime gap (2026-05-22)
+
+The structural-tax framing in §4 left an open question: **is the
+gap closeable by changing basis structure, or is it independent of
+how the W_dec slice is carved?** Wave C (polygram v0.14.0,
+2026-05-21) shipped partitioned-basis machinery designed to
+preserve hierarchical signal structure, but its forge-side A/B
+showed 0 % improvement on `forge_kl` and was filed as unproven.
+
+Re-running Wave C's partition under the capability framework
+(sae-forge `add-partition-encoding-capability-validation`, PR #89)
+produces a measurably different result:
+
+**Setup:** Heuristic decoder-norm-quantile partition (4 tiers, 256
+features each) on bio-sae's pooled SAE. Progressive sweep at
+[1000, 5000] proteins via
+`sweep_pareto_capability_progressive`. Default strictness
+(`convergence_n_stages=2`, `plateau_tolerance=0.01`).
+
+**Result:** Classified `PARTITION_PARTIAL_WIN` per the openspec's
+decision-tree:
+
+| metric | raw_slice | partition_q4 |
+|---|---|---|
+| trajectory variance (retained_mauc max-min) | **0.0235** | **0.0018** (13× lower) |
+| recommendation `target_n_features_kept` at stage 1 | n=256 | **n=128** (half) |
+| `retained_mauc` at recommendation | 0.8975 | **0.9096** (+0.012 absolute) |
+| `converged` at default strictness | False | False |
+| per-cell delta wins (out of 14 cells) | 5 | **6** (partition slightly wins) |
+| per-cell delta ties | — | 2 (n=1024, both stages) |
+
+**Three findings:**
+
+1. **The data-scale-widening retained_mauc tax is sharply reduced.**
+   Partition's trajectory variance is 13× lower than raw_slice's.
+   On the pooled regime where raw_slice drifts 0.92→0.90 between
+   1000 and 5000 proteins, partition stays in a 0.002 band. The
+   "uniform tax grows with data scale" framing applies to raw_slice
+   slicing; with partition-aware slicing, the tax is much closer to
+   data-scale-stable.
+
+2. **The Pareto frontier shifts toward smaller n.** Partition's
+   smallest-stable-plateau-member is **half** the raw_slice's
+   (n=128 vs n=256) at comparable retained_mauc. For production
+   deployment on the pooled regime: **partition is the recommended
+   encoding** for capability-critical applications — fewer
+   parameters at marginally better capability.
+
+3. **Different failure mode under convergence detection.** Both
+   regimes are un-converged at default strictness, but for
+   different reasons. Raw_slice: argmin position stable (n=256
+   both stages), retained_mauc drifts. Partition: argmin shifts
+   upward as data scale grows (n=64 → n=128), retained_mauc
+   value is stable. The argmin shift is a real concern — it means
+   partition's "ideal" width is still settling at n=5000.
+   Following the progressive wrapper's documented opt-outs
+   (longer schedule or `convergence_n_stages=1`) is appropriate.
+
+**Per-cell delta detail.** Partition doesn't uniformly dominate:
+
+| stage | width | raw_slice | partition_q4 | delta (partition − raw) |
+|---|---|---|---|---|
+| 0 | 16 | 0.8930 | 0.8421 | **−0.051** |
+| 0 | 64 | 0.8932 | 0.9114 | +0.018 |
+| 0 | 128 | 0.8920 | 0.9172 | **+0.025** |
+| 0 | 256 | 0.9210 | 0.8855 | −0.036 |
+| 0 | 384 | 0.9013 | 0.9046 | +0.003 |
+| 0 | 512 | 0.9389 | 0.9072 | **−0.032** |
+| 0 | 768 | 0.9020 | 0.9138 | +0.012 |
+| 0 | 1024 | 0.9054 | 0.9054 | 0.000 |
+| 1 | 128 | 0.8823 | 0.9096 | **+0.027** |
+| 1 | 256 | 0.8975 | 0.8728 | −0.025 |
+| 1 | 384 | 0.8729 | 0.8835 | +0.011 |
+| 1 | 512 | 0.9070 | 0.8851 | −0.022 |
+| 1 | 768 | 0.8903 | 0.9035 | +0.013 |
+| 1 | 1024 | 0.8994 | 0.8994 | 0.000 |
+
+Partition's biggest wins are at small-n cells (n=128 in both
+stages). Partition's biggest losses are at mid-n cells (n=512 at
+stage 0). The structural reading: **partition lets the forge get
+to "good enough" capability at fewer parameters** by preserving
+high-norm-tier features that the flat row-norm slice would also
+keep at small-n — plus the lower-norm tiers contribute marginal
+discriminative signal that fills out the basis even at small n.
+At larger widths, raw_slice's "just take top-N by norm" wins
+because the partition-aware slice forces inclusion of lower-norm
+features that aren't pulling their weight in the basis.
+
+**Wave C's "unproven" verdict, resolved.** The original A/B used
+`forge_kl` — a metric blind to the question partition was designed
+to answer. Under the right metric (capability AUC) at the right
+scale (progressive [1000, 5000] not single-shot ~500), partition
+DOES make a measurable difference. **The forge-side payoff
+materialized; it just wasn't visible from KL.** Wave C is no
+longer "shipped but unproven"; it's **shipped with a 13× variance
+reduction + half-the-parameters Pareto improvement at comparable
+retained capability**.
+
+**What the result doesn't claim.** Partition doesn't close the
+spread regime's structural gap — at every width, the forge still
+under-performs the host's AUC by 5-10 %. Partition reduces the
+*data-scale variance* of the tax and lets you ship at smaller n,
+but it doesn't make the forge equal to host. The architectural
+follow-up — `add-progressive-finetune` from the warm-start
+counter-shape — remains the candidate next-best lever for closing
+the absolute gap.
+
+**Reproduction:**
+
+- `bio-sae/scripts/materialize_partition_checkpoint.py` produces
+  the decoder-norm-quantile shadow checkpoint from
+  `runs/uniref50_n5000/pooled_w1024_k64/sae.pt`.
+- `bio-sae/scripts/compare_partition_vs_raw_slice.py` reads two
+  `progressive_summary.json` files (one per encoding) and emits
+  the decision-tree classification + per-cell delta table.
+- Both progressive_summary.json files at
+  `bio-sae/runs/forge/progressive_pooled_n5000{,_partition}/`.
+
 ## 6. Proposal — capability-tuning loop on labeled datasets
 
 Bio-sae has prototyped a per-dataset capability sweep. Generalising
