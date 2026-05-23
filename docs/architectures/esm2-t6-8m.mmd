@@ -1,0 +1,97 @@
+%% architecture Esm2T68m
+flowchart TD
+    input_ids(("input_ids<br/>[input]"))
+    tok_embed["tok_embed<br/>Embedding(vocab_size, d_model)"]
+    ln_1_0["ln_1_0<br/>LayerNorm(d_model)"]
+    attn_0["attn_0<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_0["add_attn_0<br/>Add()"]
+    ln_2_0["ln_2_0<br/>LayerNorm(d_model)"]
+    ffn_0["ffn_0<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_0["add_ffn_0<br/>Add()"]
+    ln_1_1["ln_1_1<br/>LayerNorm(d_model)"]
+    attn_1["attn_1<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_1["add_attn_1<br/>Add()"]
+    ln_2_1["ln_2_1<br/>LayerNorm(d_model)"]
+    ffn_1["ffn_1<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_1["add_ffn_1<br/>Add()"]
+    ln_1_2["ln_1_2<br/>LayerNorm(d_model)"]
+    attn_2["attn_2<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_2["add_attn_2<br/>Add()"]
+    ln_2_2["ln_2_2<br/>LayerNorm(d_model)"]
+    ffn_2["ffn_2<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_2["add_ffn_2<br/>Add()"]
+    ln_1_3["ln_1_3<br/>LayerNorm(d_model)"]
+    attn_3["attn_3<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_3["add_attn_3<br/>Add()"]
+    ln_2_3["ln_2_3<br/>LayerNorm(d_model)"]
+    ffn_3["ffn_3<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_3["add_ffn_3<br/>Add()"]
+    ln_1_4["ln_1_4<br/>LayerNorm(d_model)"]
+    attn_4["attn_4<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_4["add_attn_4<br/>Add()"]
+    ln_2_4["ln_2_4<br/>LayerNorm(d_model)"]
+    ffn_4["ffn_4<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_4["add_ffn_4<br/>Add()"]
+    ln_1_5["ln_1_5<br/>LayerNorm(d_model)"]
+    attn_5["attn_5<br/>MultiHeadAttention(d_model, n_heads, dropout)"]
+    add_attn_5["add_attn_5<br/>Add()"]
+    ln_2_5["ln_2_5<br/>LayerNorm(d_model)"]
+    ffn_5["ffn_5<br/>FeedForward(d_model, d_ff, dropout)"]
+    add_ffn_5["add_ffn_5<br/>Add()"]
+    final_ln["final_ln<br/>LayerNorm(d_model)"]
+    last_hidden(("last_hidden<br/>[output]"))
+    input_ids -- "tokens : (B,S)" --> tok_embed
+    tok_embed -- "h_0 : (B,S,d_model)" --> ln_1_0
+    ln_1_0 -- "h_0_n1 : (B,S,d_model)" --> attn_0
+    attn_0 -- "attn_out_0 : (B,S,d_model)" --> add_attn_0
+    tok_embed -- "h_0_skip1 : (B,S,d_model)" --> add_attn_0
+    add_attn_0 -- "r_0 : (B,S,d_model)" --> ln_2_0
+    ln_2_0 -- "r_0_n2 : (B,S,d_model)" --> ffn_0
+    ffn_0 -- "ffn_out_0 : (B,S,d_model)" --> add_ffn_0
+    add_attn_0 -- "r_0_skip2 : (B,S,d_model)" --> add_ffn_0
+    add_ffn_0 -- "h_1 : (B,S,d_model)" --> ln_1_1
+    ln_1_1 -- "h_1_n1 : (B,S,d_model)" --> attn_1
+    attn_1 -- "attn_out_1 : (B,S,d_model)" --> add_attn_1
+    add_ffn_0 -- "h_1_skip1 : (B,S,d_model)" --> add_attn_1
+    add_attn_1 -- "r_1 : (B,S,d_model)" --> ln_2_1
+    ln_2_1 -- "r_1_n2 : (B,S,d_model)" --> ffn_1
+    ffn_1 -- "ffn_out_1 : (B,S,d_model)" --> add_ffn_1
+    add_attn_1 -- "r_1_skip2 : (B,S,d_model)" --> add_ffn_1
+    add_ffn_1 -- "h_2 : (B,S,d_model)" --> ln_1_2
+    ln_1_2 -- "h_2_n1 : (B,S,d_model)" --> attn_2
+    attn_2 -- "attn_out_2 : (B,S,d_model)" --> add_attn_2
+    add_ffn_1 -- "h_2_skip1 : (B,S,d_model)" --> add_attn_2
+    add_attn_2 -- "r_2 : (B,S,d_model)" --> ln_2_2
+    ln_2_2 -- "r_2_n2 : (B,S,d_model)" --> ffn_2
+    ffn_2 -- "ffn_out_2 : (B,S,d_model)" --> add_ffn_2
+    add_attn_2 -- "r_2_skip2 : (B,S,d_model)" --> add_ffn_2
+    add_ffn_2 -- "h_3 : (B,S,d_model)" --> ln_1_3
+    ln_1_3 -- "h_3_n1 : (B,S,d_model)" --> attn_3
+    attn_3 -- "attn_out_3 : (B,S,d_model)" --> add_attn_3
+    add_ffn_2 -- "h_3_skip1 : (B,S,d_model)" --> add_attn_3
+    add_attn_3 -- "r_3 : (B,S,d_model)" --> ln_2_3
+    ln_2_3 -- "r_3_n2 : (B,S,d_model)" --> ffn_3
+    ffn_3 -- "ffn_out_3 : (B,S,d_model)" --> add_ffn_3
+    add_attn_3 -- "r_3_skip2 : (B,S,d_model)" --> add_ffn_3
+    add_ffn_3 -- "h_4 : (B,S,d_model)" --> ln_1_4
+    ln_1_4 -- "h_4_n1 : (B,S,d_model)" --> attn_4
+    attn_4 -- "attn_out_4 : (B,S,d_model)" --> add_attn_4
+    add_ffn_3 -- "h_4_skip1 : (B,S,d_model)" --> add_attn_4
+    add_attn_4 -- "r_4 : (B,S,d_model)" --> ln_2_4
+    ln_2_4 -- "r_4_n2 : (B,S,d_model)" --> ffn_4
+    ffn_4 -- "ffn_out_4 : (B,S,d_model)" --> add_ffn_4
+    add_attn_4 -- "r_4_skip2 : (B,S,d_model)" --> add_ffn_4
+    add_ffn_4 -- "h_5 : (B,S,d_model)" --> ln_1_5
+    ln_1_5 -- "h_5_n1 : (B,S,d_model)" --> attn_5
+    attn_5 -- "attn_out_5 : (B,S,d_model)" --> add_attn_5
+    add_ffn_4 -- "h_5_skip1 : (B,S,d_model)" --> add_attn_5
+    add_attn_5 -- "r_5 : (B,S,d_model)" --> ln_2_5
+    ln_2_5 -- "r_5_n2 : (B,S,d_model)" --> ffn_5
+    ffn_5 -- "ffn_out_5 : (B,S,d_model)" --> add_ffn_5
+    add_attn_5 -- "r_5_skip2 : (B,S,d_model)" --> add_ffn_5
+    add_ffn_5 -- "y : (B,S,d_model)" --> final_ln
+    final_ln -- "last_hidden : (B,S,d_model)" --> last_hidden
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class input_ids input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class last_hidden output;
