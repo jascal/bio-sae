@@ -403,6 +403,75 @@ encodings at three distinct per-encoding recommendations:
   ~30 minutes if host cache + partition shadows are reused
   across runs.
 
+## 5.7 Partition_q4 holds at 2× data; clustering-based labels confirm
+the result is about basis selection, not compression (2026-05-22)
+
+Two follow-ups to §5.5 and §5.6 closed the partition-encoding story.
+
+**Result 1: partition_q4 is data-scale-stable.** Re-ran the single-shot
+partition_q4 sweep against the n=10000 protein bundle (2× the
+training-set size used in §5.5). The retained_mauc argmax stayed at
+n=128 with retained_mauc=0.9051 (vs 0.9096 at n=5000 — within 0.005,
+inside the cell-to-cell noise band documented in §5.6). The Pareto
+shift is not a small-sample artefact.
+
+**Result 2: clustering-based labels = quantile labels here.** The
+§5.5/5.6 partitions were heuristic decoder-norm quantiles. Polygram's
+`DecoderGeometryConfirmer` + heaviness-score machinery
+(`decoder_norm² × (1 + pair_count)`) was wired up as a polygram-side
+`emit-partition-shadow` CLI and applied to the same SAE. On bio-sae's
+pooled_w1024_k64, the confirmer found 9 confirmed pairs at threshold
+0.5 — `pair_count` contributes meaningfully to fewer than 1% of
+features. Heaviness collapses to ≈ `decoder_norm²`, and the resulting
+q4 partition agrees with the row-norm-quantile partition on 96.7% of
+features. Re-running the sweep against the clustering-derived shadow
+reproduces the heuristic result within noise. The §5.5/5.6 win is
+about partition-aware basis selection, not about which labelling rule
+produces the partition.
+
+**Result 3 (negative): polygram's compress pipeline is encoding-agnostic
+on W_dec.** A "Cell C" experiment was scoped — for each polygram
+encoding choice (uniform Rung5, uniform MPSRung1, WaveC partition with
+heavy=Rung5/tail=MPSRung1), run `Compressor.run()` and measure
+retained_mauc on the regrown W_dec. Inspection of polygram's
+`apply_zero` and `apply_merge` strategies showed both touch only
+cluster-member features (9 of 1024 here, ~0.88%) and **neither calls
+the encoding's compress/decompress on W_dec rows**. Encoding choice
+affects substrate-cost accounting (cluster-rep slot counts), not W_dec
+arithmetic. The empirical test confirmed: uniform Rung5 and uniform
+MPSRung1 produced bit-identical compressed checkpoints
+(`n_kept=9, n_zeroed=9, scale_ratio=0.5138` for both). This is the
+same finding Wave C reported under `forge_kl=0%` — corrected from
+"the metric was wrong" to "the intervention does not propagate to the
+W_dec sae-forge consumes."
+
+A genuine encoding-affects-downstream test would require either
+(a) a polygram pathway that projects W_dec rows through
+`encoding.compress().decompress()` (does not exist today; lossy
+reconstruction would be a different kind of measurement), or (b) a
+substrate-budget-constrained forge where reducing total slots forces
+encoding-dependent trade-offs. Neither is in scope for the bio-sae
+capability writeup; both are noted in the polygram backlog.
+
+**Net for §5:** the partition story is closed at retained_mauc=0.9096
+(n=5000) / 0.9051 (n=10000), Pareto-shifted at n=128 vs raw_slice's
+n=64, robust across 4-tier vs 8-tier vs row-norm vs clustering label
+construction. The remaining ceiling (~0.91 retained, ~0.71 forge_mauc)
+is the structural data-scale tax (§4) — independent of how features
+are partitioned within the slice.
+
+**Reproduction (additions over §5.5/5.6):**
+
+- `polygram emit-partition-shadow --sae <pooled.pt> --output
+  <shadow.pt>` produces the clustering-based shadow checkpoint
+  consumed by `sweep_pareto_capability`.
+- n=10000 sweep: `bio-sae/scripts/partition_q4_n10000_singleshot.py`
+  (focused widths [32, 64, 128, 256, 512], host cache persists at
+  `runs/forge/partition_q4_n10000_singleshot/host_cache/`).
+- The encoding-agnosticism investigation is in
+  `bio-sae/scripts/cell_c_experiment.py` — kept as a reference for
+  why the Cell C question is closed analytically.
+
 ## 6. Proposal — capability-tuning loop on labeled datasets
 
 Bio-sae has prototyped a per-dataset capability sweep. Generalising
