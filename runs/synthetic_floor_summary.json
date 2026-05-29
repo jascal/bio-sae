@@ -1,0 +1,90 @@
+{
+  "model": "facebook/esm2_t12_35M_UR50D",
+  "layer": 12,
+  "n_proteins": 500,
+  "n_residues": 94079,
+  "residue_vocab_size": 37,
+  "extract_time_s": 38.21512198448181,
+  "rows": [
+    {
+      "name": "topk_w1024_k32",
+      "variant": "topk",
+      "width": 1024,
+      "k": 32,
+      "sparsity_lambda": 0.0,
+      "epochs": 200,
+      "wall_time_s": 419.1102180480957,
+      "variance_explained": 0.8863100633025169,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.869410855761843,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9424319392457168,
+        "synthetic": 0.6941602554005455
+      }
+    },
+    {
+      "name": "topk_w1024_k64",
+      "variant": "topk",
+      "width": 1024,
+      "k": 64,
+      "sparsity_lambda": 0.0,
+      "epochs": 200,
+      "wall_time_s": 608.0206139087677,
+      "variance_explained": 0.9238583073019981,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8748661408693552,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9435589708508099,
+        "synthetic": 0.7100033489138641
+      }
+    },
+    {
+      "name": "jumprelu_w1024_lam1e3",
+      "variant": "jumprelu",
+      "width": 1024,
+      "k": null,
+      "sparsity_lambda": 0.001,
+      "epochs": 200,
+      "wall_time_s": 636.4643588066101,
+      "variance_explained": 0.9829390682280064,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8929726231444005,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9645483506719996,
+        "synthetic": 0.721190877078163
+      }
+    },
+    {
+      "name": "l1_w1024_lam1e3",
+      "variant": "l1",
+      "width": 1024,
+      "k": null,
+      "sparsity_lambda": 0.001,
+      "epochs": 200,
+      "wall_time_s": 554.5700960159302,
+      "variance_explained": 0.9985205127159134,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8917022397243046,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9625855372627482,
+        "synthetic": 0.7215823256320406
+      }
+    }
+  ]
+}

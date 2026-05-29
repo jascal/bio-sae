@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bio-sae"
-version = "0.0.1"
+version = "0.1.0"
 description = "Protein language model activations as a tensor bundle with rich biological ground truth, used as a benchmark substrate for SAE interpretability research."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -85,6 +85,7 @@ bio-sae-visualize        = "scripts.visualize:main"
 
 [project.urls]
 Homepage = "https://github.com/jascal/bio-sae"
+Issues   = "https://github.com/jascal/bio-sae/issues"
 
 [tool.setuptools]
 packages = [

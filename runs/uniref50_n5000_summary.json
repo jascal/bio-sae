@@ -1,0 +1,113 @@
+{
+  "bundle": "data/bio_bundle_uniref50.safetensors",
+  "model": "facebook/esm2_t6_8M_UR50D",
+  "layer": 6,
+  "n_proteins": 5000,
+  "protein_vocab_size": 8013,
+  "pooled_runs": [
+    {
+      "name": "topk_w1024_k64",
+      "variant": "topk",
+      "width": 1024,
+      "k": 64,
+      "epochs": 500,
+      "variance_explained": 0.971161799505353,
+      "coverage_0_95": 0.761013353300886,
+      "mean_best_auc": 0.9572425149857255,
+      "prevalence_stratified": {
+        "singleton": {
+          "n_features": 4399,
+          "cov95": 0.9995453512161855,
+          "mAUC": 0.9950231010057433
+        },
+        "n_pos=2-3": {
+          "n_features": 1752,
+          "cov95": 0.7420091324200914,
+          "mAUC": 0.9672278564752143
+        },
+        "n_pos=4-9": {
+          "n_features": 1048,
+          "cov95": 0.3244274809160305,
+          "mAUC": 0.9082029006874807
+        },
+        "n_pos=10-30": {
+          "n_features": 504,
+          "cov95": 0.11904761904761904,
+          "mAUC": 0.830132079654656
+        },
+        "n_pos=31-100": {
+          "n_features": 205,
+          "cov95": 0.004878048780487805,
+          "mAUC": 0.7582726872593328
+        },
+        "n_pos=101-500": {
+          "n_features": 86,
+          "cov95": 0.0,
+          "mAUC": 0.7053526935523778
+        },
+        "n_pos=501-4990": {
+          "n_features": 19,
+          "cov95": 0.0,
+          "mAUC": 0.6528950585096961
+        },
+        "robust(n_pos>=10)": {
+          "n_features": 814,
+          "cov95": 0.07493857493857493,
+          "mAUC": 0.7947147503578607
+        }
+      }
+    },
+    {
+      "name": "topk_w2048_k64",
+      "variant": "topk",
+      "width": 2048,
+      "k": 64,
+      "epochs": 500,
+      "variance_explained": 0.9776564780622721,
+      "coverage_0_95": 0.7607637588918008,
+      "mean_best_auc": 0.9573392420216726,
+      "prevalence_stratified": {
+        "singleton": {
+          "n_features": 4399,
+          "cov95": 0.9993180268242783,
+          "mAUC": 0.9961263905429414
+        },
+        "n_pos=2-3": {
+          "n_features": 1752,
+          "cov95": 0.7482876712328768,
+          "mAUC": 0.9679357013876869
+        },
+        "n_pos=4-9": {
+          "n_features": 1048,
+          "cov95": 0.31583969465648853,
+          "mAUC": 0.9053206447040077
+        },
+        "n_pos=10-30": {
+          "n_features": 504,
+          "cov95": 0.1130952380952381,
+          "mAUC": 0.8276010241796159
+        },
+        "n_pos=31-100": {
+          "n_features": 205,
+          "cov95": 0.004878048780487805,
+          "mAUC": 0.7545814278348338
+        },
+        "n_pos=101-500": {
+          "n_features": 86,
+          "cov95": 0.0,
+          "mAUC": 0.7025377839372057
+        },
+        "n_pos=501-4990": {
+          "n_features": 19,
+          "cov95": 0.0,
+          "mAUC": 0.6516637646825648
+        },
+        "robust(n_pos>=10)": {
+          "n_features": 814,
+          "cov95": 0.07125307125307126,
+          "mAUC": 0.7918918548405844
+        }
+      }
+    }
+  ]
+}

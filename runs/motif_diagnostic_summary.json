@@ -1,0 +1,70 @@
+{
+  "motifs": [
+    "EF_hand",
+    "HTH",
+    "KDEL",
+    "RGD",
+    "Walker_A",
+    "Walker_B",
+    "ZincFingerL"
+  ],
+  "n_proteins": 500,
+  "results": {
+    "fuzzy": {
+      "residue": {
+        "variance_explained": 0.8957109153270721,
+        "per_motif_auc": {
+          "EF_hand": 0.822477020685497,
+          "HTH": 0.7388464140305855,
+          "KDEL": 0.6973379036087403,
+          "RGD": null,
+          "Walker_A": 0.72420378700948,
+          "Walker_B": 0.6566945637028027,
+          "ZincFingerL": 0.6611835031813375
+        },
+        "cov95": 0.0
+      },
+      "pooled": {
+        "variance_explained": 0.8364532589912415,
+        "per_motif_auc": {
+          "EF_hand": 0.6198434030618207,
+          "HTH": 0.686296092460099,
+          "KDEL": 0.5968675634166511,
+          "RGD": null,
+          "Walker_A": 0.6098650825265418,
+          "Walker_B": 0.6098650825265418,
+          "ZincFingerL": 0.686296092460099
+        },
+        "cov95": 0.0
+      }
+    },
+    "strict": {
+      "residue": {
+        "variance_explained": 0.8957853019237518,
+        "per_motif_auc": {
+          "EF_hand": 0.8397360589227925,
+          "HTH": 0.6873309748655653,
+          "KDEL": 0.6839851489963622,
+          "RGD": null,
+          "Walker_A": 0.7120121822499805,
+          "Walker_B": 0.7790086988757383,
+          "ZincFingerL": 0.7221156454448554
+        },
+        "cov95": 0.0
+      },
+      "pooled": {
+        "variance_explained": 0.8137893378734589,
+        "per_motif_auc": {
+          "EF_hand": 0.6282903709765412,
+          "HTH": 0.6612829685746352,
+          "KDEL": 0.5879966044142615,
+          "RGD": null,
+          "Walker_A": 0.6321732085294168,
+          "Walker_B": 0.6321732085294168,
+          "ZincFingerL": 0.6612829685746352
+        },
+        "cov95": 0.0
+      }
+    }
+  }
+}

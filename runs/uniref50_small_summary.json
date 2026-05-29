@@ -1,0 +1,73 @@
+{
+  "bundle": "data/bio_bundle_uniref50.safetensors",
+  "model": "facebook/esm2_t6_8M_UR50D",
+  "layer": 6,
+  "n_proteins": 100,
+  "feeds": {
+    "residue": {
+      "variant": "topk",
+      "width": 1024,
+      "k": 32,
+      "variance_explained": 0.8169503211975098,
+      "coverage_0_95": 0.8333333333333334,
+      "mean_best_auc": 0.9462751015769958,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9462751015769958
+      }
+    },
+    "pooled": {
+      "variant": "topk",
+      "width": 256,
+      "k": 16,
+      "variance_explained": 0.945142462849617,
+      "coverage_0_95": 0.6946236559139785,
+      "mean_best_auc": 0.9532053322605013,
+      "per_tier_coverage": {
+        "hierarchical": 0.6946236559139785
+      },
+      "per_tier_mauc": {
+        "hierarchical": 0.9532053322605013
+      },
+      "prevalence_stratified": {
+        "singleton": {
+          "n_features": 316,
+          "cov95": 0.9240506329113924,
+          "mAUC": 0.9873737373737375
+        },
+        "n_pos=2": {
+          "n_features": 57,
+          "cov95": 0.3508771929824561,
+          "mAUC": 0.9146974579305406
+        },
+        "n_pos=3-5": {
+          "n_features": 54,
+          "cov95": 0.2037037037037037,
+          "mAUC": 0.8942473408308381
+        },
+        "n_pos=6-15": {
+          "n_features": 29,
+          "cov95": 0.0,
+          "mAUC": 0.8295362042290805
+        },
+        "n_pos=16-40": {
+          "n_features": 8,
+          "cov95": 0.0,
+          "mAUC": 0.7443058162602192
+        },
+        "n_pos=41-80": {
+          "n_features": 1,
+          "cov95": 0.0,
+          "mAUC": 0.7922705314009661
+        },
+        "robust(n_pos>=5)": {
+          "n_features": 49,
+          "cov95": 0.0,
+          "mAUC": 0.8198303680970945
+        }
+      }
+    }
+  }
+}

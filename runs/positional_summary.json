@@ -1,0 +1,79 @@
+{
+  "bundle": "data/bio_bundle.safetensors",
+  "variant": "topk",
+  "width": 1024,
+  "rows": [
+    {
+      "name": "topk_w1024_none",
+      "pos_kind": "none",
+      "variant": "topk",
+      "width": 1024,
+      "wall_time_s": 300.55074191093445,
+      "variance_explained": 0.8957109153270721,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8701428112498047,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9419809005528297,
+        "synthetic": 0.6977313969225446
+      }
+    },
+    {
+      "name": "topk_w1024_sinusoidal",
+      "pos_kind": "sinusoidal",
+      "variant": "topk",
+      "width": 1024,
+      "wall_time_s": 372.12248182296753,
+      "variance_explained": 0.8660431504249573,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8739441562800816,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9447411399376567,
+        "synthetic": 0.7040313955019014
+      }
+    },
+    {
+      "name": "topk_w1024_learned",
+      "pos_kind": "learned",
+      "variant": "topk",
+      "width": 1024,
+      "wall_time_s": 484.37434005737305,
+      "variance_explained": 0.894163079559803,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8675321222919538,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9460510326426874,
+        "synthetic": 0.6790867374501933
+      }
+    },
+    {
+      "name": "topk_w1024_rope",
+      "pos_kind": "rope",
+      "variant": "topk",
+      "width": 1024,
+      "wall_time_s": 531.5558121204376,
+      "variance_explained": 0.864555761218071,
+      "coverage_0_95": 0.4411764705882353,
+      "mean_best_auc": 0.8376466541836972,
+      "per_tier_coverage": {
+        "categorical": 0.625,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9068379502789762,
+        "synthetic": 0.671587543555028
+      }
+    }
+  ]
+}

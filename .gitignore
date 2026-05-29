@@ -1,29 +1,58 @@
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 *.egg-info/
-.eggs/
+*.egg
 build/
 dist/
-
-# Data + runs (regenerable, large)
-data/*
-!data/.gitkeep
-runs/*
-!runs/.gitkeep
-
-# Caches
+.pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.pytest_cache/
-.ipynb_checkpoints/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-.DS_Store
-
-# Env
-.env
+# Virtual envs
 .venv/
 venv/
+ENV/
+
+# Lockfiles (regenerable from pyproject.toml; consistent with sibling repos)
+uv.lock
+
+# Editor / IDE
+.vscode/
+.idea/
+.DS_Store
+.claude/
+*.swp
+
+# Project artifacts (generated, mostly ignored). We keep small summary
+# JSONs in tree so the headline numbers are directly readable on GitHub.
+*.ckpt
+*.pt
+*.safetensors
+
+# Runs: ignore at the file-glob level, then re-include the small
+# top-level summary JSONs that the README references.
+runs/*
+!runs/.gitkeep
+!runs/*_summary.json
+!runs/*_summary__*.json
+
+# Generated data bundles — large + regeneratable from
+# scripts/build_protein_data.py. Comment these in to track only the
+# build script.
+data/*
+!data/.gitkeep
+
+# Env / secrets
+.env
+
+# Q-Orca artifacts emitted by polygram (large + reproducible)
+*.q.orca.md
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS junk
+Thumbs.db
