@@ -12,6 +12,11 @@ from biosae.experts.base import (
     Router,
 )
 from biosae.experts.extract import CoExtraction, coextract, offsets_from_lengths
+from biosae.experts.supervised_encoder import (
+    SupervisedEncoder,
+    SupervisedEncoderConfig,
+    train_supervised_encoder,
+)
 from biosae.experts.jepa_expert import (
     FlatJepaScorer,
     HFJepaBackbone,
@@ -33,6 +38,8 @@ __all__ = [
     "SupervisedJepaConfig", "train_label_jepa",
     "HFJepaBackbone", "JepaBackendUnavailable", "FlatJepaScorer",
     "mutation_action",
+    # supervised encoder (P1-on-ESM)
+    "SupervisedEncoder", "SupervisedEncoderConfig", "train_supervised_encoder",
     # extraction
     "CoExtraction", "coextract", "offsets_from_lengths",
 ]

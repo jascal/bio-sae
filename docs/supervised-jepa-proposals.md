@@ -115,6 +115,41 @@ ESM acts ─▶ context_encoder ─▶ z_ctx ──┬────────�
 - **Falsifiable prediction:** synthetic motif occ-cov95 ≥ 0.8 held-out;
   real Pfam domains within ±0.03 of the unsupervised JEPA control.
 
+> **P1-on-ESM — BUILT & MEASURED — this is the win.** After P2 isolated the
+> *substrate* (not the objective) as the bottleneck, P1 was run in its
+> sharpest form: **drop the JEPA predictive loss + EMA entirely** and train a
+> small attention encoder *directly on frozen ESM-2 acts* with the
+> occurrence-pooled objective (the span's residues are visible — the training
+> signal is exactly the eval metric). Shipped:
+> `biosae/experts/supervised_encoder.py` (`SupervisedEncoder` reuses the JEPA
+> `_Encoder` block + a CE head), `scripts/supervised_encoder_floor.py`.
+> **Same n=500 / seed 0 / 25 %-held-out split as P2**, so ESM reproduces
+> exactly. Committed: `runs/supervised_encoder_floor_summary.json`.
+>
+> | held-out feed | occ mAUC | perm null | occ − null | **occ cov95** |
+> |---|---|---|---|---|
+> | raw ESM-2 | 0.893 | 0.654 | +0.239 | 0.167 (1/6) |
+> | Label-JEPA (P2) | 0.761 | 0.611 | +0.150 | 0.0 (0/6) |
+> | **P1-on-ESM** | **0.998** | 0.638 | **+0.360** | **1.000 (6/6)** |
+>
+> **All six motifs recovered at occurrence AUC ≥ 0.95 on held-out proteins**
+> (EF_hand/HTH/KDEL/Walker_A 1.000, ZincFingerL 0.994, Walker_B 0.992; n_occ
+> 43–55 each), CE 1.90 → 0.022, held-in accuracy 0.992. P1 even nudges the
+> *per-residue* wall off zero (cov95 0.10). This **confirms the P2 diagnosis
+> and resolves the arc**: motif recovery needs all three levers together —
+> a **strong substrate** (ESM, not a from-scratch encoder), an **aligned
+> objective** (occurrence-pooled supervision), and the **right metric**
+> (occurrence-level). It independently re-derives Family G's occurrence
+> recovery (9/10) from the JEPA-experts line — here 6/6 on the smaller
+> synthetic library. The JEPA predictive objective turned out to be
+> *unnecessary* for this win (P1 drops it); its value is elsewhere
+> (substrate diversity for the ISF/H-ISF ensemble, PR #2).
+>
+> Open follow-ups the win unblocks: (a) does it hold on the **real-Pfam
+> floor** (the salience law predicts a smaller margin where ESM already
+> recovers large domains)? (b) feed these supervised latents into the
+> **ISF/H-ISF ensemble** as a motif-specialist recipe.
+
 ### P2 — Label-JEPA: predict the masked motif annotation (most JEPA-native)
 
 Make the **biology label the predictive target**. Mask a span; the context

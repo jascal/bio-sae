@@ -1,0 +1,103 @@
+{
+  "proposal": "P1-on-ESM (occurrence-supervised encoder on frozen ESM-2)",
+  "n_proteins": 500,
+  "n_train": 375,
+  "n_test": 125,
+  "n_motif_classes": 7,
+  "d_latent": 256,
+  "depth": 2,
+  "label_pool": "max",
+  "pool": "max",
+  "rows": [
+    {
+      "feed": "esm",
+      "d_feed": 320,
+      "per_residue_motif_cov95": 0.0,
+      "occ_cov95": 0.16666666666666666,
+      "occ_mean_auc": 0.8926975546739523,
+      "occ_null": 0.6535538450109518,
+      "occ_minus_null": 0.23914370966300047,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.8689256198347107,
+          "n_occ": 55,
+          "null_mean": 0.6428776859504132
+        },
+        "HTH": {
+          "occ_auc": 0.9402153018069973,
+          "n_occ": 51,
+          "null_mean": 0.6487985390234524
+        },
+        "KDEL": {
+          "occ_auc": 0.9734991887506761,
+          "n_occ": 43,
+          "null_mean": 0.6615859924283396
+        },
+        "Walker_A": {
+          "occ_auc": 0.8649382716049383,
+          "n_occ": 45,
+          "null_mean": 0.6602617283950617
+        },
+        "Walker_B": {
+          "occ_auc": 0.882962962962963,
+          "n_occ": 45,
+          "null_mean": 0.6577135802469135
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.8256439830834295,
+          "n_occ": 51,
+          "null_mean": 0.6500855440215301
+        }
+      }
+    },
+    {
+      "feed": "supervised_encoder_p1",
+      "d_feed": 256,
+      "per_residue_motif_cov95": 0.1,
+      "occ_cov95": 1.0,
+      "occ_mean_auc": 0.997680806527404,
+      "occ_null": 0.6380229979585168,
+      "occ_minus_null": 0.3596578085688872,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 1.0,
+          "n_occ": 55,
+          "null_mean": 0.6318223140495867
+        },
+        "HTH": {
+          "occ_auc": 1.0,
+          "n_occ": 51,
+          "null_mean": 0.6355411380238369
+        },
+        "KDEL": {
+          "occ_auc": 1.0,
+          "n_occ": 43,
+          "null_mean": 0.6390995132504057
+        },
+        "Walker_A": {
+          "occ_auc": 0.9997530864197531,
+          "n_occ": 45,
+          "null_mean": 0.6447975308641974
+        },
+        "Walker_B": {
+          "occ_auc": 0.9920987654320987,
+          "n_occ": 45,
+          "null_mean": 0.6386950617283951
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.994232987312572,
+          "n_occ": 51,
+          "null_mean": 0.638182429834679
+        }
+      }
+    }
+  ],
+  "p1_vs_esm": {
+    "occ_mauc_delta": 0.1049832518534517,
+    "occ_cov95_delta": 0.8333333333333334,
+    "beats_esm_baseline": true
+  },
+  "ce_final": 0.0224700050894171,
+  "ce_acc_final": 0.992348367969195,
+  "wall_time_s": 645.7100918292999
+}
