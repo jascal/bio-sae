@@ -1,0 +1,143 @@
+{
+  "proposal": "P2 Label-JEPA (masked motif-annotation prediction)",
+  "n_proteins": 500,
+  "n_train": 375,
+  "n_test": 125,
+  "n_motif_classes": 7,
+  "label_weight": 1.0,
+  "motif_mask_prob": 0.7,
+  "pool": "max",
+  "rows": [
+    {
+      "feed": "esm",
+      "d_feed": 320,
+      "per_residue_motif_cov95": 0.0,
+      "occ_cov95": 0.16666666666666666,
+      "occ_mean_auc": 0.8926975546739523,
+      "occ_null": 0.6535538450109518,
+      "occ_minus_null": 0.23914370966300047,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.8689256198347107,
+          "n_occ": 55,
+          "null_mean": 0.6428776859504132
+        },
+        "HTH": {
+          "occ_auc": 0.9402153018069973,
+          "n_occ": 51,
+          "null_mean": 0.6487985390234524
+        },
+        "KDEL": {
+          "occ_auc": 0.9734991887506761,
+          "n_occ": 43,
+          "null_mean": 0.6615859924283396
+        },
+        "Walker_A": {
+          "occ_auc": 0.8649382716049383,
+          "n_occ": 45,
+          "null_mean": 0.6602617283950617
+        },
+        "Walker_B": {
+          "occ_auc": 0.882962962962963,
+          "n_occ": 45,
+          "null_mean": 0.6577135802469135
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.8256439830834295,
+          "n_occ": 51,
+          "null_mean": 0.6500855440215301
+        }
+      }
+    },
+    {
+      "feed": "jepa_unsup",
+      "d_feed": 128,
+      "per_residue_motif_cov95": 0.0,
+      "occ_cov95": 0.0,
+      "occ_mean_auc": 0.6622853637992049,
+      "occ_null": 0.6273749673412731,
+      "occ_minus_null": 0.034910396457931814,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.6471074380165289,
+          "n_occ": 55,
+          "null_mean": 0.6158876033057851
+        },
+        "HTH": {
+          "occ_auc": 0.7137639369473279,
+          "n_occ": 51,
+          "null_mean": 0.6232766243752402
+        },
+        "KDEL": {
+          "occ_auc": 0.6825310978907517,
+          "n_occ": 43,
+          "null_mean": 0.6349351000540833
+        },
+        "Walker_A": {
+          "occ_auc": 0.6148148148148148,
+          "n_occ": 45,
+          "null_mean": 0.6329246913580246
+        },
+        "Walker_B": {
+          "occ_auc": 0.6269135802469136,
+          "n_occ": 45,
+          "null_mean": 0.6313962962962963
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.6885813148788927,
+          "n_occ": 51,
+          "null_mean": 0.6258294886582084
+        }
+      }
+    },
+    {
+      "feed": "jepa_label_p2",
+      "d_feed": 128,
+      "per_residue_motif_cov95": 0.0,
+      "occ_cov95": 0.0,
+      "occ_mean_auc": 0.761303706905065,
+      "occ_null": 0.6112509950886148,
+      "occ_minus_null": 0.1500527118164502,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.8137190082644629,
+          "n_occ": 55,
+          "null_mean": 0.604507438016529
+        },
+        "HTH": {
+          "occ_auc": 0.8112264513648597,
+          "n_occ": 51,
+          "null_mean": 0.6095271049596309
+        },
+        "KDEL": {
+          "occ_auc": 0.7614926987560844,
+          "n_occ": 43,
+          "null_mean": 0.6165873445105463
+        },
+        "Walker_A": {
+          "occ_auc": 0.6812345679012346,
+          "n_occ": 45,
+          "null_mean": 0.6140037037037037
+        },
+        "Walker_B": {
+          "occ_auc": 0.7654320987654321,
+          "n_occ": 45,
+          "null_mean": 0.6134407407407407
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.7347174163783161,
+          "n_occ": 51,
+          "null_mean": 0.6094396386005383
+        }
+      }
+    }
+  ],
+  "p2_vs_esm": {
+    "occ_cov95_delta": -0.16666666666666666,
+    "occ_mauc_delta": -0.1313938477688873,
+    "beats_esm_baseline": false
+  },
+  "ce_final": 0.35553354894121486,
+  "ce_acc_final": 0.8526947448650996,
+  "wall_time_s": 610.6024880409241
+}

@@ -1,0 +1,34 @@
+# Supervised JEPA — proposal P2 (Label-JEPA).
+#
+# Predicts the masked motif annotation from flanking context, shaping the
+# context-encoder latents an occurrence-level scorer reads. Held-out protein
+# split; compared against raw ESM-2 and the unsupervised JEPA control.
+# Design: docs/supervised-jepa-proposals.md (P2 + §4 eval + Phase 0 baseline).
+#
+#   python scripts/supervised_jepa_floor.py --config configs/supervised_jepa.yaml
+
+substrate:
+  n_proteins: 500
+  max_length: 320
+  esm_model: facebook/esm2_t6_8M_UR50D
+  layer: 6
+  seed: 0
+
+jepa:
+  d_latent: 128
+  depth: 1
+  predictor_depth: 1
+  n_heads: 4
+  epochs: 60
+  # --- P2 supervision knobs ---
+  supervision: masked_label
+  label_weight: 1.0            # CE weight on top of the predictive loss
+  motif_mask_prob: 0.7         # P(mask a true motif span) vs a background span
+  label_pool: max              # span -> vector pool for the label head
+
+eval:
+  test_frac: 0.25              # held-out proteins (no residue leakage)
+  pool: max                    # occurrence scorer pooling
+  n_perm: 200                  # permutation-null repetitions
+
+device: cpu
