@@ -114,3 +114,160 @@ def score_against_ground_truth(
         "coverage_at_0.95":   cov95,
         "per_feature_best_auc": best_auc.tolist(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Occurrence-level scoring (supervised-JEPA Phase 0)
+# ---------------------------------------------------------------------------
+# A *region-level* feature (a planted motif spans several residues) scored
+# per residue can't clear cov95 — the established "the wall was the metric"
+# finding. This scorer evaluates the right object: each motif *occurrence*
+# (a contiguous labelled span) is one example, pooled to a single latent
+# vector, scored against matched background windows. See
+# docs/supervised-jepa-proposals.md §4 for the protocol this implements.
+
+
+def _best_latent_sym_auc(R: np.ndarray, y: np.ndarray, mask: Optional[np.ndarray] = None) -> float:
+    """Best symmetric AUC over latents for ranked features R (n, d), labels y.
+
+    R is the per-latent column-rank matrix (ranks 1..n within each latent),
+    so the Mann-Whitney AUC of latent j is a single dot product y · R[:, j].
+    Returns max_j max(AUC_j, 1 - AUC_j) — the same best-latent-with-flip
+    selection score_against_ground_truth uses. ``mask`` (d,) drops degenerate
+    (zero-variance) latents, whose tied ranks would otherwise score a
+    spurious 1.0 from the argsort tie-break alone.
+    """
+    n = R.shape[0]
+    n_pos = float(y.sum())
+    n_neg = n - n_pos
+    if n_pos <= 0 or n_neg <= 0:
+        return float("nan")
+    s_pos = y.astype(np.float64) @ R                          # (d,)
+    auc = (s_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
+    sym = np.maximum(auc, 1.0 - auc)
+    if mask is not None:
+        sym = np.where(mask, sym, -np.inf)
+    best = float(np.max(sym))
+    return best if np.isfinite(best) else float("nan")
+
+
+def _column_ranks(X: np.ndarray) -> np.ndarray:
+    """Ranks 1..n within each column of X (n, d); ties broken by argsort."""
+    n, d = X.shape
+    order = X.argsort(axis=0)
+    ranks = np.empty((n, d), dtype=np.float64)
+    rank_template = np.arange(1, n + 1, dtype=np.float64)[:, None]
+    ranks[order, np.arange(d)[None, :]] = rank_template
+    return ranks
+
+
+def _pool(Z: np.ndarray, a: int, b: int, how: str) -> np.ndarray:
+    span = Z[a:b]
+    return span.max(axis=0) if how == "max" else span.mean(axis=0)
+
+
+def score_occurrences(
+    Z,
+    occurrences: Iterable[tuple],
+    lengths: Iterable[int],
+    vocab: Optional[Iterable[str]] = None,
+    pool: str = "max",
+    n_neg_per_pos: int = 1,
+    n_perm: int = 100,
+    seed: int = 0,
+) -> dict:
+    """Occurrence-level motif recovery for a latent feed ``Z`` ``(N_res, d)``.
+
+    Parameters
+    ----------
+    Z : array ``(N_res, d)``
+        Latents (or raw activations) in protein-major residue order.
+    occurrences : iterable of ``(name, row_start, row_end)``
+        Each motif instance as a half-open **flat** residue-row span.
+    lengths : iterable of int
+        Per-protein residue counts (to keep background windows within one
+        protein and off every occurrence span).
+    vocab : iterable of str, optional
+        Motif names to score (default: the names present in ``occurrences``).
+    pool : ``"max"`` | ``"mean"``
+        Span → vector pooling (axis C in the spec; ``max`` is the zero-param
+        baseline).
+    n_neg_per_pos, n_perm, seed :
+        Negatives sampled per positive; permutation-null repetitions; RNG seed.
+
+    Returns a dict with per-motif ``occ_auc`` / ``n_occ`` / ``null_mean`` and
+    the aggregates ``occ_cov95`` (fraction of motifs with best-latent
+    occ-AUC ≥ 0.95), ``mean_occ_auc``, and ``mean_null`` (the selection-biased
+    permutation null — anything not clearing it is noise; the published synthetic
+    null is ≈ 0.69).
+    """
+    Z = (Z.detach().cpu().numpy() if isinstance(Z, torch.Tensor) else np.asarray(Z)).astype(np.float64)
+    occ = [(str(n), int(a), int(b)) for (n, a, b) in occurrences]
+    lengths = [int(x) for x in lengths]
+    offsets = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+    rng = np.random.default_rng(seed)
+
+    if vocab is None:
+        vocab = sorted({n for n, _, _ in occ})
+    else:
+        vocab = list(vocab)
+
+    # Per-protein occupancy mask so negatives avoid *every* motif span.
+    occupied = np.zeros(Z.shape[0], dtype=bool)
+    for _, a, b in occ:
+        occupied[a:b] = True
+
+    def _sample_negative(span_len: int) -> Optional[tuple]:
+        for _ in range(20):                                   # rejection sampling
+            p = int(rng.integers(0, len(lengths)))
+            lo, hi = offsets[p], offsets[p + 1]
+            if hi - lo <= span_len:
+                continue
+            a = int(rng.integers(lo, hi - span_len + 1))
+            if not occupied[a:a + span_len].any():
+                return (a, a + span_len)
+        return None
+
+    per_motif = {}
+    occ_aucs, nulls = [], []
+    for m in vocab:
+        pos_spans = [(a, b) for n, a, b in occ if n == m]
+        n_pos = len(pos_spans)
+        if n_pos < 2:
+            per_motif[m] = {"occ_auc": float("nan"), "n_occ": n_pos, "null_mean": float("nan")}
+            continue
+        pos_vecs = np.stack([_pool(Z, a, b, pool) for a, b in pos_spans])     # (n_pos, d)
+        neg_vecs = []
+        for a, b in pos_spans:
+            for _ in range(n_neg_per_pos):
+                s = _sample_negative(b - a)
+                if s is not None:
+                    neg_vecs.append(_pool(Z, s[0], s[1], pool))
+        if not neg_vecs:
+            per_motif[m] = {"occ_auc": float("nan"), "n_occ": n_pos, "null_mean": float("nan")}
+            continue
+        neg_vecs = np.stack(neg_vecs)                                          # (n_neg, d)
+        X = np.concatenate([pos_vecs, neg_vecs], axis=0)                       # (n, d)
+        y = np.concatenate([np.ones(len(pos_vecs)), np.zeros(len(neg_vecs))])
+        nonconst = X.std(axis=0) > 1e-12                                       # (d,)
+        R = _column_ranks(X)
+        occ_auc = _best_latent_sym_auc(R, y, nonconst)
+        # Permutation null with the SAME best-latent-over-flips selection, so
+        # the null absorbs the max-over-latents selection bias (≈0.69, not 0.5).
+        null_samples = [
+            _best_latent_sym_auc(R, rng.permutation(y), nonconst) for _ in range(n_perm)
+        ]
+        null_mean = float(np.mean(null_samples))
+        per_motif[m] = {"occ_auc": occ_auc, "n_occ": n_pos, "null_mean": null_mean}
+        occ_aucs.append(occ_auc)
+        nulls.append(null_mean)
+
+    valid = [a for a in occ_aucs if not np.isnan(a)]
+    return {
+        "per_motif": per_motif,
+        "occ_cov95": float(np.mean([a >= 0.95 for a in valid])) if valid else 0.0,
+        "mean_occ_auc": float(np.mean(valid)) if valid else float("nan"),
+        "mean_null": float(np.mean(nulls)) if nulls else float("nan"),
+        "n_motifs_scored": len(valid),
+        "pool": pool,
+    }

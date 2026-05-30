@@ -1,0 +1,96 @@
+{
+  "phase": "supervised-jepa Phase 0 (metric-wall)",
+  "n_proteins": 200,
+  "n_residues": 38212,
+  "n_occurrences": 450,
+  "pool": "max",
+  "device": "cpu",
+  "rows": [
+    {
+      "feed": "esm",
+      "d_feed": 320,
+      "per_residue_motif_cov95": 0.0,
+      "per_residue_motif_mauc": 0.7120375864503146,
+      "occ_cov95": 0.16666666666666666,
+      "occ_mean_auc": 0.8846549344120483,
+      "occ_null": 0.6229381679744538,
+      "occ_minus_null": 0.26171676643759456,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.914718772826881,
+          "n_occ": 74,
+          "null_mean": 0.6247411431701972
+        },
+        "HTH": {
+          "occ_auc": 0.9402934727610053,
+          "n_occ": 77,
+          "null_mean": 0.6211709394501602
+        },
+        "KDEL": {
+          "occ_auc": 0.9819078947368421,
+          "n_occ": 76,
+          "null_mean": 0.6220961738227146
+        },
+        "Walker_A": {
+          "occ_auc": 0.8553199474573091,
+          "n_occ": 73,
+          "null_mean": 0.6241194407956465
+        },
+        "Walker_B": {
+          "occ_auc": 0.8423719271908425,
+          "n_occ": 73,
+          "null_mean": 0.6243371176580972
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.7733175914994097,
+          "n_occ": 77,
+          "null_mean": 0.6211641929499072
+        }
+      }
+    },
+    {
+      "feed": "jepa_unsup",
+      "d_feed": 128,
+      "per_residue_motif_cov95": 0.0,
+      "per_residue_motif_mauc": 0.6452365438352115,
+      "occ_cov95": 0.0,
+      "occ_mean_auc": 0.7287874369751347,
+      "occ_null": 0.597883678812772,
+      "occ_minus_null": 0.13090375816236266,
+      "per_motif": {
+        "EF_hand": {
+          "occ_auc": 0.712289992695398,
+          "n_occ": 74,
+          "null_mean": 0.6005706720233747
+        },
+        "HTH": {
+          "occ_auc": 0.712430426716141,
+          "n_occ": 77,
+          "null_mean": 0.5966440377804014
+        },
+        "KDEL": {
+          "occ_auc": 0.871277700831025,
+          "n_occ": 76,
+          "null_mean": 0.5986751211911358
+        },
+        "Walker_A": {
+          "occ_auc": 0.7134546819290674,
+          "n_occ": 73,
+          "null_mean": 0.5968718333646088
+        },
+        "Walker_B": {
+          "occ_auc": 0.733064364796397,
+          "n_occ": 73,
+          "null_mean": 0.5992709701632577
+        },
+        "ZincFingerL": {
+          "occ_auc": 0.6302074548827795,
+          "n_occ": 77,
+          "null_mean": 0.5952694383538539
+        }
+      }
+    }
+  ],
+  "interpretation": "Per-residue motif cov95 stays ~0 (the wall). Occurrence-level scoring lifts mean AUC above the permutation null but unsupervised feeds do not clear cov95 on small synthetic motifs \u2014 confirming the scorer and establishing the baseline the supervised proposals (docs/supervised-jepa-proposals.md P1/P2) must beat.",
+  "wall_time_s": 68.47613096237183
+}
