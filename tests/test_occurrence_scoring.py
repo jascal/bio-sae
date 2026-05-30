@@ -10,6 +10,7 @@ selection-biased permutation null, and degenerate latents can't fake a win.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from biosae.sae.evaluation import score_occurrences
 
@@ -96,3 +97,43 @@ def test_single_occurrence_motif_is_skipped():
     assert out["per_motif"]["solo"]["n_occ"] == 1
     assert np.isnan(out["per_motif"]["solo"]["occ_auc"])
     assert out["n_motifs_scored"] == 0
+
+
+# ---------------------------------------------------------------------------
+# ISF ensemble routing
+# ---------------------------------------------------------------------------
+from biosae.sae.evaluation import ensemble_route  # noqa: E402
+
+
+def test_ensemble_route_picks_best_per_label():
+    # 3 recipes × 4 labels. host=esm(row0). p1(row2) wins the last 2 labels.
+    A = [
+        [0.90, 0.95, 0.70, 0.72],   # esm (host)
+        [0.60, 0.62, 0.65, 0.66],   # jepa_unsup
+        [0.55, 0.58, 0.99, 0.98],   # p1_motif
+    ]
+    out = ensemble_route(A, ["esm", "jepa_unsup", "p1_motif"], host=0)
+    assert out["router_names"] == ["esm", "esm", "p1_motif", "p1_motif"]
+    # ensemble takes the column max
+    assert out["ensemble_best"] == [0.90, 0.95, 0.99, 0.98]
+    assert out["host"] == "esm"
+    # ensemble beats the host on the 2 motif labels
+    assert out["frac_beats_host"] == 0.5
+    # ensemble mAUC strictly exceeds the best single recipe (lift > 0)
+    assert out["ensemble_lift"] > 0
+    assert out["router_composition"] == {"esm": 2, "jepa_unsup": 0, "p1_motif": 2}
+    assert out["retained"] > 1.0                # ensemble > host on average
+
+
+def test_ensemble_route_single_recipe_has_zero_lift():
+    out = ensemble_route([[0.8, 0.9, 0.7]], ["only"], host=0)
+    assert out["ensemble_lift"] == 0.0
+    assert out["frac_beats_host"] == 0.0
+    assert out["retained"] == 1.0
+
+
+def test_ensemble_route_validates_shape_and_names():
+    with pytest.raises(ValueError, match="2-D"):
+        ensemble_route([0.5, 0.6])
+    with pytest.raises(ValueError, match="recipe_names"):
+        ensemble_route([[0.5, 0.6]], ["a", "b"])
