@@ -457,6 +457,10 @@ class HFJepaBackbone(nn.Module):
         kind = meta.get("kind", "")
         backbone: Optional[nn.Module] = None
         if str(kind).startswith("vjepa"):
+            # TODO(transformers>=4.53): once `transformers` ships the `vjepa2`
+            # architecture, `AutoModel.from_pretrained` succeeds here and the
+            # `.predictor` path in `HFJepaBackbone.encode` becomes live; pin it
+            # via the `jepa` optional-dependency extra (see pyproject.toml).
             try:
                 from transformers import AutoModel
                 backbone = AutoModel.from_pretrained(model_id).eval().to(device)

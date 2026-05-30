@@ -936,6 +936,11 @@ each feed; only the substrate differs.
 | `jepa`   |   256  | **0.986** | 0.588    | 0.853     | 0.833             | **0.0 %** / 0.640                  |
 | `concat` |   576  | 0.942     | 0.588    | 0.855     | 0.833             | **0.0 %** / 0.644                  |
 
+*Legend: **VE** = variance explained (reconstruction quality of the feed);
+**mAUC** = mean over GT features of the best per-latent AUC; **cov@0.95** =
+fraction of GT features with best AUC ≥ 0.95 (the same headline triple the
+rest of the repo reports).*
+
 Raw `jepa` latents *before any SAE* (least-squares readout): retained
 VE = **0.723**, mAUC = 0.682 — the predictive encoder keeps ~72 % of the
 ESM-2 activation variance linearly recoverable.
