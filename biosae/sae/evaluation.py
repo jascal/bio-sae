@@ -271,3 +271,57 @@ def score_occurrences(
         "n_motifs_scored": len(valid),
         "pool": pool,
     }
+
+
+# ---------------------------------------------------------------------------
+# ISF-style ensemble routing
+# ---------------------------------------------------------------------------
+def ensemble_route(
+    recipe_auc,
+    recipe_names: Optional[Iterable[str]] = None,
+    host: int = 0,
+    eps: float = 1e-9,
+) -> dict:
+    """Per-label router over a recipe × label AUC matrix (the ISF mechanism).
+
+    ``recipe_auc`` is ``(R, V)`` — recipe ``r``'s best-latent AUC on label
+    ``v``. Implements ``R[v] = argmax_m forge_AUC[m, v]`` from
+    docs/forge-incremental-specialist.md §2: each label is routed to the
+    recipe that discriminates it best, and the ensemble takes that best AUC.
+
+    Returns the per-label ``router`` (+ ``router_names``), the per-recipe and
+    ensemble mean AUC, the **ensemble lift** over the best *single* recipe
+    (the H-ISF headline — diversity only helps if the routed ensemble beats
+    every individual recipe), ``retained`` vs the host recipe, the fraction of
+    labels where the ensemble strictly beats the host, and the router
+    composition (how many labels each recipe wins).
+    """
+    A = np.asarray(recipe_auc, dtype=np.float64)
+    if A.ndim != 2:
+        raise ValueError(f"recipe_auc must be 2-D (R, V), got shape {A.shape}")
+    R, V = A.shape
+    names = list(recipe_names) if recipe_names is not None else [f"recipe_{i}" for i in range(R)]
+    if len(names) != R:
+        raise ValueError(f"recipe_names ({len(names)}) != n_recipes ({R})")
+
+    router = A.argmax(axis=0)                       # (V,)
+    ensemble_best = A.max(axis=0)                   # (V,)
+    per_recipe_mauc = A.mean(axis=1)                # (R,)
+    ensemble_mauc = float(ensemble_best.mean())
+    best_single = float(per_recipe_mauc.max())
+    host_auc = A[host]                              # (V,)
+    host_mauc = float(host_auc.mean())
+    return {
+        "router": router.tolist(),
+        "router_names": [names[i] for i in router],
+        "ensemble_best": ensemble_best.tolist(),
+        "per_recipe_mauc": {names[i]: float(per_recipe_mauc[i]) for i in range(R)},
+        "ensemble_mauc": ensemble_mauc,
+        "best_single_recipe": names[int(per_recipe_mauc.argmax())],
+        "ensemble_lift": ensemble_mauc - best_single,
+        "host": names[host],
+        "host_mauc": host_mauc,
+        "retained": ensemble_mauc / host_mauc if host_mauc > 0 else float("nan"),
+        "frac_beats_host": float((ensemble_best > host_auc + eps).mean()),
+        "router_composition": {names[i]: int((router == i).sum()) for i in range(R)},
+    }

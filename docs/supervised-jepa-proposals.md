@@ -150,6 +150,32 @@ ESM acts ─▶ context_encoder ─▶ z_ctx ──┬────────�
 > recovers large domains)? (b) feed these supervised latents into the
 > **ISF/H-ISF ensemble** as a motif-specialist recipe.
 
+> **Follow-up (b) — DONE.** `biosae.sae.evaluation.ensemble_route` +
+> `scripts/isf_motif_ensemble.py` route three *objective-family* recipes
+> (raw ESM / unsupervised JEPA / P1 motif specialist) through the ISF router
+> (`R[v]=argmax_m AUC[m,v]`), each label scored at its natural granularity
+> (categorical @ residue, motif @ occurrence), on the same held-out split.
+> Committed: `runs/isf_motif_ensemble_summary.json`.
+>
+> | recipe | mAUC (30 labels) |
+> |---|---|
+> | esm_raw (host) | 0.939 |
+> | jepa_unsup | 0.711 |
+> | p1_motif | 0.951 |
+> | **routed ensemble** | **0.972** |
+>
+> The router sends **all 6 motif labels to `p1_motif`** (motif tier host
+> 0.893 → ensemble **0.998**, +0.105) and splits the categorical tier (p1 13,
+> esm 11; 0.951 → 0.965). Net: **ensemble lift +0.021 over the best single
+> recipe**, **retained 1.035 vs the ESM host**, **63 % of labels beat host** —
+> the H-ISF headline (the routed ensemble beats every individual recipe),
+> with the lift concentrated exactly where the specialist was built to win.
+> `jepa_unsup` wins 0 labels on this synthetic motif+categorical set — its
+> diversity value showed on real GO/Pfam labels in the prior ISF runs, not
+> here. So the supervised motif specialist slots into H-ISF as a new
+> **objective-family** recipe (alongside H-ISF's encoding-family axis), and
+> the ensemble routes to it cleanly.
+
 ### P2 — Label-JEPA: predict the masked motif annotation (most JEPA-native)
 
 Make the **biology label the predictive target**. Mask a span; the context
