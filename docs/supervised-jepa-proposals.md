@@ -44,13 +44,13 @@ the *same* PR as its objective change, or it will look like a null result
 for the same reason the JEPA feed did. This is the central constraint on
 every proposal below.
 
-**The salience law (predict it, then test it).** Family G's value scaled
+**The salience heuristic (a rule of thumb — predict it, then test it).** Family G's value scaled
 *inversely* with target salience: decisive on small synthetic motifs,
 unnecessary on large reconstruction-salient real domains (where the
 unsupervised control already got 9/10). Every proposal below should be
 expected to **win big on the synthetic motif tier and barely move real Pfam
 domains** — and we report both, so a real-domain null is logged as
-*confirmation of the law*, not a failure.
+*consistent with the heuristic*, not a failure.
 
 ---
 
@@ -146,7 +146,7 @@ ESM acts ─▶ context_encoder ─▶ z_ctx ──┬────────�
 > (substrate diversity for the ISF/H-ISF ensemble, PR #2).
 >
 > Open follow-ups the win unblocks: (a) does it hold on the **real-Pfam
-> floor** (the salience law predicts a smaller margin where ESM already
+> floor** (the salience heuristic suggests a smaller margin where ESM already
 > recovers large domains)? (b) feed these supervised latents into the
 > **ISF/H-ISF ensemble** as a motif-specialist recipe.
 
@@ -314,7 +314,7 @@ This is half the lever. Ship it with proposal #1 chosen.
 - ESM-2 baseline — same;
 - per-residue vs occurrence scoring of the *same* latents (the wall);
 - the salience split: **synthetic motif tier vs real Pfam tier**, reported
-  separately, to confirm the salience law rather than average it away.
+  separately, to check the salience heuristic rather than average it away.
 
 **Honest protocol:** protein-level train/test split (no residue leakage),
 score the **latents** (not the aux head's logits), exactly as
@@ -346,7 +346,7 @@ These are the calls to make before building. Each maps to a design axis.
 - **Q6 (split).** Held-out proteins (recommended) — confirm we are *not*
   attempting held-out labels at n_motif < 10.
 - **Q7 (scope).** Synthetic-only v1, or include the real-Pfam floor in the
-  first PR? Recommendation: synthetic first (where the law predicts a
+  first PR? Recommendation: synthetic first (where the heuristic suggests a
   decisive win), real-Pfam as the immediate follow-up to log the null.
 - **Q8 (ensemble).** Does the supervised JEPA enter the ISF/H-ISF ensemble
   as a *new recipe* (encoding-family diversity, which H-ISF found wins), or
@@ -362,7 +362,7 @@ These are the calls to make before building. Each maps to a design axis.
 | **0** | §4 occurrence scorer + the metric-wall table on *existing* PR #2 latents | scorer reproduces the 0.69 null and the unsup control |
 | **1** | P1 (`aux_head`) behind `configs/supervised_jepa.yaml`; synthetic floor | synthetic occ-cov95 ≥ 0.8 held-out, clears null |
 | **2** | P2 (`masked_label`) sharing the scorer; A/B vs P1 | P2 ≥ P1 on held-out-protein occ-AUC |
-| **3** | real-Pfam floor for P1/P2 | logs the salience-law null honestly |
+| **3** | real-Pfam floor for P1/P2 | logs the salience-heuristic null honestly |
 | **4** | best variant enters the H-ISF ensemble as a new recipe | ensemble lift > 0 on the GO-BP subset |
 
 Phase 0 is buildable *today* against the merged JEPA expert and is the
