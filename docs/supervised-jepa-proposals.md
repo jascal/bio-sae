@@ -268,6 +268,40 @@ Phase 0 is buildable *today* against the merged JEPA expert and is the
 cheapest way to de-risk every proposal — **it tests the metric, not the
 model.** Do it first regardless of which proposal wins.
 
+### Phase 0 — result (shipped in this PR)
+
+`scripts/occurrence_floor.py` + `score_occurrences` (n=200 synthetic, layer 6,
+`max` pool, 200-perm null, 450 occurrences across 6 planted motif types).
+Committed: `runs/occurrence_floor_summary.json`.
+
+| feed | per-residue motif cov95 | **occ cov95** | occ mAUC | perm null | occ − null |
+|---|---|---|---|---|---|
+| raw ESM-2 | **0.0 %** | 0.167 (1/6) | 0.885 | 0.623 | **+0.262** |
+| unsup. JEPA | **0.0 %** | 0.000 (0/6) | 0.729 | 0.598 | +0.131 |
+
+Reading it:
+
+1. **The scorer is honest.** The selection-biased permutation null lands at
+   **0.62**, right where the published synthetic null (~0.69) said it should —
+   the max-over-latents inflation is captured, not hidden.
+2. **The wall reproduces.** Per-residue motif cov95 is **0 %** on both feeds,
+   exactly as every prior run found.
+3. **Occurrence scoring lifts signal off the floor but not to threshold.**
+   Both feeds clear the null (ESM +0.262, JEPA +0.131), yet only the single
+   most salient motif clears cov95 (KDEL, AUC 0.982 on ESM — the literal
+   `KDEL` 4-mer, and notably the *lone holdout* in the supervised Family-G
+   run). Per-motif on ESM: KDEL 0.982, HTH 0.940, EF_hand 0.915, Walker_A
+   0.855, Walker_B 0.842, ZincFingerL 0.773.
+4. **This is the baseline the proposals must beat.** Unsupervised occurrence
+   scoring is *necessary but not sufficient* on small synthetic motifs —
+   precisely the gap supervision (P1/P2) is meant to close. The bar for v1 is
+   explicit: **beat ESM's occ mAUC 0.885 / occ cov95 0.167 held-out**, and do
+   it through the *latents the SAE reads*, not a classifier head.
+   (Interesting wrinkle for P-selection: the *untrained-objective* JEPA latents
+   score **below** raw ESM at occurrence level — the predictive objective
+   alone, without supervision, slightly *blurs* the small-motif signal. That
+   makes P2/P3, which reshape the objective itself, the more interesting bets.)
+
 ---
 
 ## 7. Concrete code surface
