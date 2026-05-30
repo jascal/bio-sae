@@ -1,0 +1,28 @@
+%% architecture bio_sae_protein_jepa_expert
+flowchart TD
+    x(("x<br/>[input]"))
+    embed["embed<br/>Linear(input_dim, embed_dim)"]
+    attn["attn<br/>MultiHeadAttention(embed_dim, n_heads, dropout)"]
+    add_attn["add_attn<br/>Add()"]
+    ln["ln<br/>LayerNorm(embed_dim)"]
+    fc1["fc1<br/>Linear(embed_dim, h1_dim)"]
+    act1["act1<br/>ReLU()"]
+    fc2["fc2<br/>Linear(h1_dim, h2_dim)"]
+    act2["act2<br/>ReLU()"]
+    head["head<br/>Linear(h2_dim, out_dim)"]
+    y(("y<br/>[output]"))
+    x -- "x : (B,N,input_dim)" --> embed
+    embed -- "tokens : (B,N,embed_dim)" --> attn
+    attn -- "attn_out : (B,N,embed_dim)" --> add_attn
+    embed -- "tok_skip : (B,N,embed_dim)" --> add_attn
+    add_attn -- "r : (B,N,embed_dim)" --> ln
+    ln -- "r_n : (B,N,embed_dim)" --> fc1
+    fc1 -- "z1 : (B,N,h1_dim)" --> act1
+    act1 -- "h1 : (B,N,h1_dim)" --> fc2
+    fc2 -- "z2 : (B,N,h2_dim)" --> act2
+    act2 -- "h2 : (B,N,h2_dim)" --> head
+    head -- "y_hat : (B,N,out_dim)" --> y
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class x input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class y output;

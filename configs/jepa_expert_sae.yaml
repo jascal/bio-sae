@@ -1,0 +1,47 @@
+# JEPA-expert SAE experiment.
+#
+# Trains one or more protein-native JEPA world-model experts on ESM-2
+# activations, then trains/scores SAEs on the ESM feed, the JEPA feed, and
+# their concatenation — isolating how much a *predictive* substrate helps
+# the hard motif tier that a per-residue reconstruction SAE keeps missing.
+#
+#   python scripts/train_jepa_experts.py     --config configs/jepa_expert_sae.yaml
+#   python scripts/ensemble_sae_jepa_eval.py --config configs/jepa_expert_sae.yaml
+
+substrate:
+  source: synthetic                 # synthetic | bundle
+  n_proteins: 500
+  max_length: 320
+  esm_model: facebook/esm2_t6_8M_UR50D
+  layer: 6
+  seed: 0
+  # bundle: data/bio_bundle_uniref50_n1000.safetensors   # source: bundle only
+
+jepa:
+  n_experts: 2                      # ensemble size (diverse seeds + mask modes)
+  d_latent: 128                     # latent projection dim (bump to 256+ on GPU)
+  depth: 1                          # context/target encoder blocks
+  predictor_depth: 1
+  n_heads: 4
+  mask_mode: span                   # span (masked-feature) | future (causal)
+  mask_ratio: 0.25
+  horizon: 0                        # future mode: residues ahead (0 → mask_ratio tail)
+  ema_decay: 0.996
+  epochs: 30                        # CPU-laptop sizing (~28s/epoch at d_latent=256/depth=2)
+  batch_proteins: 32
+  lr: 1.0e-3
+
+sae:
+  variant: topk                     # topk | jumprelu | l1
+  width: 1024
+  k: 32
+  epochs: 120
+  batch_size: 4096
+  lr: 1.0e-3
+
+ensemble:
+  feeds: [esm, jepa, concat]        # which residue feeds to train + score SAEs on
+  fusion: concat                    # concat | route
+  routing: input_norm               # uniform | input_norm | learned
+
+device: cpu
