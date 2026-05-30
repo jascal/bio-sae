@@ -284,6 +284,13 @@ def ensemble_route(
 ) -> dict:
     """Per-label router over a recipe × label AUC matrix (the ISF mechanism).
 
+    This is the dependency-free origin of the primitive now graduated into
+    sae-forge as ``saeforge.isf.ensemble_route`` (the canonical, recipe-agnostic
+    version every fixture imports; see sae-forge ``docs/concise-via-routing.md``).
+    The two agree on NaN-free input — pinned by ``tests/test_occurrence_scoring.py``
+    — so this local copy stays as the no-extra-dependency fallback while the
+    cross-fixture work (econ-sae, sm-sae) uses the sae-forge one.
+
     ``recipe_auc`` is ``(R, V)`` — recipe ``r``'s best-latent AUC on label
     ``v``. Implements ``R[v] = argmax_m forge_AUC[m, v]`` from
     docs/forge-incremental-specialist.md §2: each label is routed to the
