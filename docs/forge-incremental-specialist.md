@@ -710,8 +710,8 @@ recipes compound to unlock them. The phase-by-phase recipe map:
 | C. NN composite | polygram_balanced (partial); orthogonalized_greedy TODO | numpy | partial | — |
 | D. Polygram | polygram_balanced (selection-only); Compressor.apply merge TODO | `polygram.Compressor` | partial | sm-sae's primary axis (MPSRung1/Rung3/Rung5) |
 | **E. Symbolic** | **orca FSMs** (E1); **q-orca quantum SMs** (E2); **orca decision tables** (E3) | **`mcp__orca__*`** + **`mcp__q-orca__*`** | TODO | **econ-sae Phase 2.0/4.1's engineered ratios are E3-flavoured** |
-| **F. Substrate-side NN** | F1 attention-prefixed SAE; F2 multi-layer; F3 different-layer (InterPLM L3); F4 larger host; F5 multi-host | **`mcp__n-orca__build_sae` + `compile_pytorch`** | TODO | **econ-sae Phase 1.6 AttnWorldModel is the prototype** |
-| **G. Supervised SAE** | NEW: train SAE jointly with per-label classifier head | **`mcp__n-orca__build_sae`** (with auxiliary head) | TODO | **econ-sae Phase 5.1 — +0.087 mAUC on hardest tier** |
+| **F. Substrate-side NN** | **F1 attention-prefixed SAE — SHIPPED 2026-05-29 (see §4.8.2; clean negative on motif tier)**; F2 multi-layer; F3 different-layer (InterPLM L3); F4 larger host; F5 multi-host | **`mcp__n-orca__build_sae` + `compile_pytorch`** | F1 done, rest TODO | **econ-sae Phase 1.6 AttnWorldModel is the prototype** |
+| **G. Supervised SAE** | **F1∘G (AttnTopKSAE encoder + auxiliary per-label classifier head) — SHIPPED 2026-05-29 (see §4.8.3–4.8.5)** | **`mcp__n-orca__build_sae`** (with auxiliary head) | **G done — RESOLVES the motif tier: 9/10 motifs ≥0.95 occurrence-level detection (control 0/10, null 0.69); the seven-axis 0% cov95 wall was per-residue scoring of a region-level phenomenon** | **econ-sae Phase 5.1 — +0.087 mAUC on hardest tier** |
 
 **Tool taxonomy clarified:**
 - **n-orca = NN architecture modeling** — the tool for Families F and G (build_sae, build_world_model, compile_pytorch). It's how to declaratively spec an attention-prefixed SAE or a supervised SAE, compile to trainable PyTorch, and ship.
@@ -730,19 +730,28 @@ and G (regime-supervised SAE), and both materially shifted ceilings.
 **Recommended priority order for bio-sae's next investments** (in
 light of econ-sae's empirical evidence):
 
-1. **Family F1**: attention-prefixed SAE on bio-sae's bundle. Most
-   directly transfers econ-sae's Phase 1.6 finding. Implementation
-   route: `mcp__n-orca__build_sae` with an attention prefix in the
-   spec → `compile_pytorch` → train on bundle → re-run ISF against
-   the new SAE. ~half-day total. Acceptance: any Pfam labels move
-   above 0 beats-host.
+1. **Family F1 — DONE (2026-05-29), clean negative.** See §4.8.2. The
+   attention-prefixed SAE was built via n-orca and trained on the
+   synthetic floor; it does NOT move the motif tier (0% cov95, motif
+   mAUC 0.696 vs baseline 0.698). Ablation shows attention is used
+   (VE 0.893→0.818 when zeroed) but contributes nothing to motif
+   discrimination. The negative implicates the **reconstruction
+   objective**, not representational capacity.
 
-2. **Family G**: supervised SAE on bio-sae. New family entirely.
-   `mcp__n-orca__build_sae` with auxiliary per-label classifier head
-   in the spec; train with joint reconstruction + classifier loss on
-   the top-100 most-prevalent labels. ~1 day to prototype.
-   Acceptance: per-label AUCs on supervised labels rise above the
-   unsupervised SAE's by a measurable margin.
+2. **Family G — DONE (2026-05-29), RESOLVES the motif tier.**
+   See §4.8.3–4.8.5. The F1∘G supervised SAE (AttnTopKSAE encoder +
+   auxiliary per-label classifier head, joint recon + BCE) first lifts
+   held-out motif mAUC **+0.14 (0.684 → 0.824 at aux_weight 0.1)** over the
+   matched unsupervised control (§4.8.3–4.8.4). Per-residue cov95 stayed
+   0 % and an aux_weight sweep showed scaling the dense head doesn't change
+   that — which prompted the right question: per-residue is the wrong bar
+   for a *region*. Under **occurrence-level detection** (§4.8.5) the
+   supervised SAE recovers **9/10 motifs at AUC ≥ 0.95** (peak 0.999) on
+   held-out proteins, vs **0/10** for the unsupervised control and a 0.69
+   permutation-null floor. The seven-axis "motif wall" was a measurement
+   artifact; supervision built the detectors. Optional follow-on: routed/
+   sparse supervision to push KDEL (0.944) over and to sharpen per-residue
+   firing — no longer needed to demonstrate recovery.
 
 3. **Family D (Compressor.apply merge)**: actual polygram-compressed
    SAE shadow as an ISF ensemble member. Most aligned with the
@@ -753,6 +762,303 @@ light of econ-sae's empirical evidence):
    Most speculative but the only family member that captures
    sequential composition orthogonally to all other families.
    2-3 days.
+
+## 4.8.2 Family F1 result — attention is necessary-but-not-sufficient (2026-05-29)
+
+F1 was built via the n-orca MCP server and run against the synthetic
+floor — the cleanest motif-recovery probe, where five prior ablation
+axes (scale, position, layer, wildcards, feed) all left the motif tier
+pinned at 0 % cov95 ([[motif-recovery-architecture-limit]]).
+
+**Build (via n-orca).** `mcp__n-orca__build_sae(variant="attn_topk",
+input_dim=320, n_features=1024, k=32, n_heads=4)` → architecture doc
+`docs/architectures/bio-sae-attn-topk-f1.n.orca.md` (+ `.mmd`) →
+`compile_pytorch`. Flow: `MultiheadAttention(batch_first) → +residual →
+LayerNorm → encoder → ReLU → TopK → decoder`, 3-D `(B,T,d)` per-protein
+so each residue attends across its sequence; decoder reconstructs the
+original (pre-attention) x. Integrated as
+`biosae.sae.positional.AttnTopKSAE` with `train_attn_sae` (padded
+per-protein batches + attention mask, recon loss on real residues only),
+`pad_proteins`, and `FlatAttnScorer` (re-groups the scorer's flat `(N,d)`
+input into per-protein batches — the README closure pattern).
+
+**Head-to-head** (`scripts/attn_floor_experiment.py`, n=500 synthetic,
+esm2_t6_8M layer 6, width 1024 / k=32 / 4 heads, baseline 200 epochs /
+attn 150 epochs; `runs/attn_floor_n500/`):
+
+| tier | baseline flat TopK | attn F1 |
+|---|---|---|
+| categorical cov95 / mAUC | 83.3 % / 0.942 | 83.3 % / 0.942 |
+| **synthetic (motif) cov95 / mAUC** | **0.0 % / 0.698** | **0.0 % / 0.696** |
+| VE | 0.896 | 0.894 |
+
+**Ablation** (`scripts/attn_ablation_diagnostic.py`, n=200): score the
+trained attn SAE with attention ON vs zeroed (`disable_attn`).
+
+| | VE | motif cov95 | motif mAUC |
+|---|---|---|---|
+| attn ON | 0.8932 | 0.0 % | 0.6910 |
+| attn OFF | 0.8180 | 0.0 % | 0.6920 |
+
+`‖attn_out‖/‖x‖ ≈ 0.30` on real residues.
+
+**Reading.** Attention is genuinely used — zeroing it costs −0.075 VE,
+so it's load-bearing for *reconstruction* — but it adds nothing to motif
+discrimination (motif mAUC is flat with it on or off). The earlier framing
+("the per-residue SAE can't *see* motifs; add attention") is falsified as
+stated: cross-residue context is available and used, the motif tier still
+doesn't move. **The bottleneck is the objective, not the capacity.** A
+pure reconstruction loss organises latents around reconstruction variance
+and never rewards a monosemantic "in-HTH-motif" latent — regardless of
+whether neighbour context is in scope. This is bio-sae's direct analog of
+econ-sae's lesson that Phase 1.6 (attention) needed Phase 5.1 (supervision)
+on top to crack the hardest tier → **Family G is the indicated next lever,
+ideally F1∘G** (the AttnTopKSAE encoder + an auxiliary per-label
+classifier head). F1's build infra (n-orca spec, module, batching,
+scorer) is reusable for that.
+
+## 4.8.3 Family G result — supervision is the first lever to move the motif tier (2026-05-29)
+
+The §4.8.2 diagnosis (the *objective*, not capacity, is the bottleneck)
+makes a falsifiable prediction: add a loss term that *rewards* motif
+discrimination directly and the motif tier should finally move. Family G
+is that term — an auxiliary per-label classifier head off the sparse
+latents, trained jointly with reconstruction
+(`loss = recon + aux_weight · BCEWithLogits(label)`). The strongest
+variant, **F1∘G**, keeps the §4.8.2 AttnTopKSAE encoder and bolts the
+head on (`AttnSAEConfig(n_labels=V, aux_weight=…)`,
+`train_attn_sae(…, labels=…)`; head + joint loss added in
+`biosae.sae.positional`).
+
+**Family G quickstart** — the whole composition is three calls:
+
+```python
+from biosae.sae.positional import AttnSAEConfig, train_attn_sae, FlatAttnScorer
+
+# acts:   list of (L_i, d) per-protein ESM activation tensors
+# labels: list of (L_i, V) per-protein 0/1 residue-label tensors (same order)
+cfg = AttnSAEConfig(width=1024, k=32, n_heads=4, n_labels=V, aux_weight=0.1)
+sae, hist = train_attn_sae(acts, cfg, labels=labels)   # joint recon + 0.1·BCE
+# omit labels (and set n_labels=None) for the unsupervised F1 control.
+
+# score the LATENTS on held-out proteins (classifier head discarded):
+scorer = FlatAttnScorer(sae, test_lengths)             # flat (N,d) → per-protein
+x_hat, z = scorer(X_test_flat)
+```
+
+**Honest protocol** (`scripts/attn_supervised_floor.py`,
+`runs/attn_supervised_n500/`): a supervised model can trivially memorise
+residue labels, so (a) the split is **protein-level** — the 100 test
+proteins' residues are never seen in training; (b) we score the sparse
+**latents z** — the *same* metric F1 and the flat baseline are scored on,
+*not* the classifier logits, which are discarded at eval; (c) the control
+is unsupervised F1 trained on the *same* 400-protein train split and
+scored on the *same* 100 held-out proteins. The only difference between
+arms is the aux loss.
+
+| held-out tier | control (unsup F1) | supervised (F1∘G) | Δ |
+|---|---|---|---|
+| categorical cov95 / mAUC | 83.3 % / 0.942 | 83.3 % / 0.944 | +0.002 |
+| **synthetic (motif) cov95 / mAUC** | **0.0 % / 0.701** | **0.0 % / 0.802** | **+0.101** |
+| VE | 0.878 | 0.856 | −0.022 |
+
+(n=500 / 37 labels, esm2_t6_8M layer 6, width 1024 / k=32 / 4 heads,
+150 epochs, **aux_weight = 0.1**, final aux BCE 0.0038.)
+
+**Reading.** This is the **first lever in the entire bio-sae
+motif-recovery journey to move the synthetic tier at all** — six prior
+axes (scale, position, layer, wildcards, feed, attention;
+[[motif-recovery-architecture-limit]]) left it inert, and a *light*
+supervised term (aux_weight only 0.1) lifts held-out motif mAUC +0.10. It
+**generalises** — the gain is on held-out proteins, scored on the latents
+not the head, so supervision reshaped the *dictionary*, not just fit a
+classifier on top. This confirms §4.8.2: the objective was the
+bottleneck and supervision is the right class of fix, at a cost of only
+−0.02 VE.
+
+But it is a **half-crack, not a full one**: average motif discrimination
+rises sharply while **monosemanticity does not** — cov95 is still 0 %, no
+single latent crosses the 0.95 bar. Supervision spreads motif signal
+across the *population* of latents (every latent a little more
+motif-aware) rather than concentrating it into a few clean detectors. The
+open lever is to push from "discriminative on average" to "monosemantic":
+the obvious knobs are **aux_weight** (0.1 was deliberately light and still
+moved +0.10 → sweep up), a **sparser / per-latent** supervision signal
+(one-latent-per-label routing rather than a dense head), and more labels.
+**Family G is no longer the indicated-but-untested lever — it is
+validated; the next question is monosemanticity, not whether supervision
+helps.**
+
+## 4.8.4 aux_weight sweep — the dense head taps out at 0.1 (2026-05-29)
+
+The §4.8.3 follow-up: does *more* supervision push cov95 above 0?
+`scripts/attn_aux_weight_sweep.py` shares one ESM extraction + protein
+split + unsupervised control across a geometric aux_weight ladder
+(`runs/attn_aux_sweep/`, MPS, n=500 / 150 epochs):
+
+| aux_weight | VE | motif cov95 | motif mAUC | motif peak | cat mAUC |
+|---|---|---|---|---|---|
+| control | 0.877 | 0.0 % | 0.684 | 0.766 | 0.941 |
+| **0.1** | 0.852 | 0.0 % | **0.824** | 0.904 | 0.953 |
+| 0.5 | 0.780 | 0.0 % | 0.795 | 0.857 | 0.983 |
+| 1.0 | 0.820 | 0.0 % | 0.766 | 0.908 | 0.970 |
+| 2.0 | 0.803 | 0.0 % | 0.806 | 0.879 | 0.962 |
+| 4.0 | 0.780 | 0.0 % | 0.814 | 0.919 | 0.951 |
+
+**Reading.** Every supervised arm beats the control by a wide margin on
+motif mAUC (+0.08…+0.14), but the relationship to aux_weight is flat-to-
+noisy: **0.1 already gives the best mAUC (0.824)**, heavier weights only
+trade VE (0.877→0.78) for no monosemanticity gain — motif peak hovers
+0.86–0.92 and **cov95 stays 0 % at every weight**. The *categorical*
+(easy) tier rises monotonically with supervision (0.941→0.983) while the
+*motif* (hard) tier does not. Conclusion: **scaling the dense
+`Linear(width, V)` head is a dead lever for motif monosemanticity.** This
+correctly redirected the question away from "more supervision" and toward
+"is 0.95-per-residue even the right bar?" — answered next.
+
+## 4.8.5 The motif tier is RECOVERED — the seven-axis wall was the metric (2026-05-29)
+
+cov95 scores AUC **per residue**: it asks one latent to fire on *every*
+residue of a 5–15-residue motif and nowhere else. But a motif is a
+*region*, recognised by an anchor — not a per-residue uniform signal. So
+the right question is occurrence-level: *is there a latent that reliably
+flags each motif occurrence?* `scripts/attn_motif_boundary_diagnostic.py`
+re-scores the **same** `sup_aw0.1` held-out latents under boundary-tolerant
+metrics (`runs/attn_aux_sweep/boundary_diagnostic.json`).
+
+**`occ_maxpool` defined exactly** (no Hungarian matching — a simple
+per-occurrence max-pool detection AUC, `occ_maxpool_peak()` in the
+diagnostic): for a motif label, every contiguous run of its per-residue
+mask within a protein is one *occurrence*; the positive sample for latent
+`j` is `max` of `z[:, j]` over that occurrence's residues. Negatives are
+equal-length **non-overlapping** background tiles (window = median
+occurrence length for that label) max-pooled the same way, taken only from
+windows that touch no occurrence of the label. The metric is the symmetric
+Mann–Whitney AUC of positives vs negatives for latent `j`; the reported
+`occ_maxpool` is the **max over all 1024 latents**, and the implied cov95 is
+the fraction of motif labels whose best latent clears 0.95. The
+max-over-latents is exactly what the label-permutation null below bounds.
+
+| metric | what it asks | control peak / cov95 | supervised peak / cov95 |
+|---|---|---|---|
+| per_residue | fire on *every* motif residue | 0.766 / 0 % | 0.904 / 0 % |
+| core_erode2 | drop 2 edge residues | 0.801 / 0 % | 0.935 / 0 % |
+| dontcare2 | ignore ±2 near-misses | 0.766 / 0 % | 0.906 / 0 % |
+| **occ_maxpool** | **detect the occurrence** | **0.942 / 0 %** | **0.999 / 90 %** |
+
+Per-motif under occurrence detection, `sup_aw0.1` (held-out): Walker_A
+0.999, EF_hand 0.996, Kinase_like 0.995, Calcium_bind 0.994, HTH 0.992,
+DNA_binding 0.986, ZincFinger 0.973, Walker_B 0.959, ER_retention 0.954 —
+**9 of 10 motifs ≥ 0.95**; only KDEL (0.944, the shortest motif, 31 occ)
+just misses.
+
+**Three controls make this airtight, not a lenient-metric illusion:**
+1. **Erosion / don't-care barely move** (0.904 → 0.935 / 0.906). The cap is
+   *not* 1–2 fuzzy edge residues; the latent genuinely fires *sparsely
+   within* the motif (on a few anchor residues), which is exactly why
+   per-residue AUC saturates ~0.90 while occurrence detection hits ~1.0.
+2. **Unsupervised control under the identical metric**: peak 0.942, **0/10**
+   motifs ≥ 0.95. Same architecture, same max-over-1024-latents — supervision
+   is what lifts 9/10 over the bar; the metric does not hand it out.
+3. **Label-permutation null** (500 reps, 31–45 occ/motif): the inflation
+   floor is **occ_null95 ≈ 0.69** for every motif — max-over-1024-latents
+   buys only ~0.69 under random labels, so 0.95+ is real signal, not a
+   multiple-comparison artifact. (The null *does* saturate when a motif has
+   <~10 occurrences — checked, none here do.)
+
+All on held-out proteins, latents scored, classifier head discarded — so
+these are generalising detectors, not memorised labels.
+
+**Reading — this resolves the motif tier.** The "0 % cov95 across seven
+ablation axes" ([[motif-recovery-architecture-limit]]) was *per-residue
+scoring of a region-level phenomenon*. The lever that cracked it is
+**supervision (Family G / F1∘G)**: it built occurrence-level monosemantic
+motif detectors (control has none). Routed/sparse supervision is **no
+longer needed to demonstrate recovery** — it remains an optional refinement
+to (a) push KDEL over 0.95 and (b) sharpen per-residue firing if a
+per-residue detector is ever actually wanted. The headline correction to
+the whole arc: bio-sae's motif tier is *recoverable*, and the apparent
+architectural wall was a measurement bar.
+
+## 4.8.6 Real-biology check — real domains recover at occurrence level, but WITHOUT supervision (2026-05-29)
+
+§4.8.5 was on synthetic *planted* motifs. Does occurrence-level recovery
+hold on real proteins with real annotations? `scripts/real_pfam_floor.py`
+runs the identical pipeline on **985 real UniRef50 proteins** with
+residue-level domain ground truth pulled offline from the UniProt cache's
+`features` spans (12 localized families — real analogs EF-hand / HTH /
+Zn-finger plus RRM / RING / TPR / WD40 / Ankyrin / F-box / PH / BTB /
+Response-reg). Protein split 788 train / 197 test, same F1∘G (aux 0.1),
+held-out latents scored at the occurrence level with the 500-perm null
+(`runs/real_pfam_floor/`). 10 families clear n_occ ≥ 10:
+
+| family | n_occ | ctl per-res | sup per-res | **ctl occ** | **sup occ** | null95 |
+|---|---|---|---|---|---|---|
+| HTH | 81 | 0.795 | 0.870 | 0.993 | 0.981 | 0.626 |
+| WD40 | 20 | 0.749 | 0.800 | 0.987 | 0.985 | 0.734 |
+| RRM | 17 | 0.813 | 0.925 | 1.000 | 1.000 | 0.753 |
+| BTB | 16 | 0.875 | 0.933 | 0.907 | 0.950 | 0.762 |
+| TPR | 15 | 0.762 | 0.733 | 0.993 | 0.982 | 0.768 |
+| RING | 14 | 0.714 | 0.931 | 0.976 | 0.974 | 0.774 |
+| EF_hand | 13 | 0.860 | 0.920 | 1.000 | 1.000 | 0.782 |
+| Ankyrin | 11 | 0.788 | 0.916 | 0.999 | 0.999 | 0.805 |
+| F_box | 11 | 0.804 | 0.936 | 1.000 | 1.000 | 0.804 |
+| Response_reg | 11 | 0.852 | 0.940 | 1.000 | 1.000 | 0.818 |
+
+(PH and Zn_fungal at n_occ=8 self-flag sparse and are excluded.)
+
+**Occurrence-level recovery transfers to real biology — but the
+unsupervised control recovers it too.** Both control and supervised clear
+9/10 (both miss only BTB, both right at 0.95); null floors 0.63–0.85
+confirm it is real signal, not metric saturation. **Supervision is NOT the
+differentiator for real domains.**
+
+**This sharpens — not contradicts — §4.8.5 (synthetic control 0/10).** Real
+domains are large (median 30–270 res) and *reconstruction-salient* — they
+are big chunks of the protein, so a plain reconstruction SAE already learns
+latents that detect them. Synthetic motifs are 5–15-residue
+*reconstruction-invisible needles*, surfaced only by supervision. So the two
+results jointly pin down the law: **supervision's value scales inversely
+with target salience** — decisive for small reconstruction-invisible motifs,
+unnecessary for large reconstruction-salient domains.
+
+What supervision *does* buy on real domains is **per-residue sharpness**: it
+lifts the harder per-residue AUC on 9/10 families (median +0.081, up to
++0.24 PH / +0.22 RING); occurrence detection has no headroom left for the
+unsupervised baseline. Net: the occurrence-level metric is the right success
+measure for region features in both regimes; Family G is the lever for the
+hard (small-motif) regime and a sharpener in the easy (large-domain) one.
+
+## 4.8.7 Does the attention prefix earn its compute? Real-data ablation (2026-05-29)
+
+`scripts/attn_real_ablation.py` reloads the §4.8.6 real-domain checkpoints
+and re-scores the held-out real proteins with attention ON vs zeroed
+(`disable_attn`) — the real-data analog of §4.8.2's synthetic ablation, no
+retraining:
+
+| checkpoint | ‖attn_out‖/‖x‖ | VE ON→OFF | occ recovered ON/OFF | per-res mean ON→OFF |
+|---|---|---|---|---|
+| control (unsup) | 0.50 | 0.825 → 0.664 (**−0.161**) | **9/10 → 9/10** | 0.801 → 0.791 |
+| supervised F1∘G | 0.42 | 0.808 → 0.738 (**−0.070**) | **9/10 → 9/10** | 0.890 → 0.833 (−0.057) |
+
+**Same verdict as synthetic (§4.8.2), even sharper: attention is a
+*reconstruction* aid, not a *recovery* aid.** Zeroing it craters VE
+(−0.16 control / −0.07 supervised) and it carries ~42–50 % of each residue's
+representation norm (vs 0.30 on synthetic — real proteins are more diverse,
+so cross-residue context helps reconstruction more). **But occurrence-level
+domain detection is unchanged with it off** — 9/10 recovered either way, mean
+occ peak Δ ≤ 0.002, per-family deltas tiny and bidirectional (noise). The
+only discrimination it buys is **per-residue sharpness in the supervised
+model** (+0.057), i.e. attention + supervision jointly sharpen per-residue
+firing — but per-residue is not the recovery metric.
+
+**So for bio-sae's actual goal (recover interpretable domain features at the
+occurrence level), the attention prefix F1 does not earn its compute** — a
+flat supervised TopK SAE would very likely recover real domains as well. The
+attention block is justified only when faithful reconstruction VE is itself a
+goal. The recovery lever is supervision (Family G); for large real domains
+even that is unnecessary (§4.8.6 salience law). Cleanly: **F1 does
+reconstruction work, G does recovery work** — and the two are separable.
 
 ## 5. Open design questions
 

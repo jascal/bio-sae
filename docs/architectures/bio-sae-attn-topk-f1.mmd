@@ -1,0 +1,24 @@
+%% architecture bio_sae_attn_topk_f1
+flowchart TD
+    x(("x<br/>[input]"))
+    x_hat(("x_hat<br/>[output]"))
+    attn["attn<br/>MultiHeadAttention(input_dim, n_heads, attn_dropout)"]
+    add_attn["add_attn<br/>Add()"]
+    ln["ln<br/>LayerNorm(input_dim)"]
+    encoder["encoder<br/>Linear(input_dim, n_features)"]
+    relu["relu<br/>ReLU()"]
+    topk["topk<br/>TopK(k)"]
+    decoder["decoder<br/>Linear(n_features, input_dim)"]
+    x -- "x : (B,T,input_dim)" --> attn
+    attn -- "attn_out : (B,T,input_dim)" --> add_attn
+    x -- "x_skip : (B,T,input_dim)" --> add_attn
+    add_attn -- "r : (B,T,input_dim)" --> ln
+    ln -- "r_n : (B,T,input_dim)" --> encoder
+    encoder -- "z_pre : (B,T,n_features)" --> relu
+    relu -- "z_relu : (B,T,n_features)" --> topk
+    topk -- "z_sparse : (B,T,n_features)" --> decoder
+    decoder -- "x_hat : (B,T,input_dim)" --> x_hat
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class x input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class x_hat output;

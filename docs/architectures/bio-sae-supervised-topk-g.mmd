@@ -1,0 +1,21 @@
+%% architecture bio_sae_supervised_topk_g
+flowchart TD
+    x(("x<br/>[input]"))
+    x_hat(("x_hat<br/>[output]"))
+    encoder["encoder<br/>Linear(input_dim, n_features)"]
+    relu["relu<br/>ReLU()"]
+    topk["topk<br/>TopK(k)"]
+    decoder["decoder<br/>Linear(n_features, input_dim)"]
+    aux_head["aux_head<br/>Linear(n_features, n_labels)"]
+    y_logits(("y_logits<br/>[output]"))
+    x -- "x : (B,input_dim)" --> encoder
+    encoder -- "z_pre : (B,n_features)" --> relu
+    relu -- "z_relu : (B,n_features)" --> topk
+    topk -- "z_sparse : (B,n_features)" --> decoder
+    topk -- "z_sparse : (B,n_features)" --> aux_head
+    decoder -- "x_hat : (B,input_dim)" --> x_hat
+    aux_head -- "y_logits : (B,n_labels)" --> y_logits
+    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a;
+    class x input;
+    classDef output fill:#dcfce7,stroke:#166534,color:#14532d;
+    class x_hat,y_logits output;
