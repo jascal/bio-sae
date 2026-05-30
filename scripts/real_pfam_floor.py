@@ -52,6 +52,13 @@ from biosae.proteins.esm_extract import EsmExtractor
 from biosae.sae.positional import AttnSAEConfig, FlatAttnScorer, train_attn_sae
 from scripts.attn_motif_boundary_diagnostic import find_runs, metric_peak, occ_maxpool_peak
 
+# The UniProt cache is the on-disk JSON written *whole* by
+# biosae.labels.uniprot.fetch_batch (one <accession>.json per entry, including
+# the `features` array we read here). It is populated as a side effect of
+# annotating real proteins — e.g. `scripts/build_protein_data.py` on a UniRef50
+# sample runs annotate_records → uniprot.fetch_batch, caching every entry. So
+# this script is fully offline against whatever has already been fetched; it
+# never hits the network. Override the location with $BIO_SAE_CACHE.
 DEFAULT_CACHE = Path(os.environ.get("BIO_SAE_CACHE", Path.home() / ".cache" / "bio-sae")) / "uniprot"
 
 # Real domain families to recover (token triggers → clean label). First match wins.

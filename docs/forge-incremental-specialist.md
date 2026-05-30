@@ -830,6 +830,22 @@ head on (`AttnSAEConfig(n_labels=V, aux_weight=…)`,
 `train_attn_sae(…, labels=…)`; head + joint loss added in
 `biosae.sae.positional`).
 
+**Family G quickstart** — the whole composition is three calls:
+
+```python
+from biosae.sae.positional import AttnSAEConfig, train_attn_sae, FlatAttnScorer
+
+# acts:   list of (L_i, d) per-protein ESM activation tensors
+# labels: list of (L_i, V) per-protein 0/1 residue-label tensors (same order)
+cfg = AttnSAEConfig(width=1024, k=32, n_heads=4, n_labels=V, aux_weight=0.1)
+sae, hist = train_attn_sae(acts, cfg, labels=labels)   # joint recon + 0.1·BCE
+# omit labels (and set n_labels=None) for the unsupervised F1 control.
+
+# score the LATENTS on held-out proteins (classifier head discarded):
+scorer = FlatAttnScorer(sae, test_lengths)             # flat (N,d) → per-protein
+x_hat, z = scorer(X_test_flat)
+```
+
 **Honest protocol** (`scripts/attn_supervised_floor.py`,
 `runs/attn_supervised_n500/`): a supervised model can trivially memorise
 residue labels, so (a) the split is **protein-level** — the 100 test
@@ -908,7 +924,20 @@ residue of a 5–15-residue motif and nowhere else. But a motif is a
 the right question is occurrence-level: *is there a latent that reliably
 flags each motif occurrence?* `scripts/attn_motif_boundary_diagnostic.py`
 re-scores the **same** `sup_aw0.1` held-out latents under boundary-tolerant
-metrics (`runs/attn_aux_sweep/boundary_diagnostic.json`):
+metrics (`runs/attn_aux_sweep/boundary_diagnostic.json`).
+
+**`occ_maxpool` defined exactly** (no Hungarian matching — a simple
+per-occurrence max-pool detection AUC, `occ_maxpool_peak()` in the
+diagnostic): for a motif label, every contiguous run of its per-residue
+mask within a protein is one *occurrence*; the positive sample for latent
+`j` is `max` of `z[:, j]` over that occurrence's residues. Negatives are
+equal-length **non-overlapping** background tiles (window = median
+occurrence length for that label) max-pooled the same way, taken only from
+windows that touch no occurrence of the label. The metric is the symmetric
+Mann–Whitney AUC of positives vs negatives for latent `j`; the reported
+`occ_maxpool` is the **max over all 1024 latents**, and the implied cov95 is
+the fraction of motif labels whose best latent clears 0.95. The
+max-over-latents is exactly what the label-permutation null below bounds.
 
 | metric | what it asks | control peak / cov95 | supervised peak / cov95 |
 |---|---|---|---|

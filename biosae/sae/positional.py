@@ -276,6 +276,16 @@ class AttnSAEConfig:
     n_labels: Optional[int] = None
     aux_weight: float = 0.1
 
+    def __post_init__(self):
+        if self.variant != "attn_topk":
+            raise ValueError(f"unsupported variant {self.variant!r}; only 'attn_topk'")
+        if self.n_labels is not None and self.n_labels < 1:
+            raise ValueError(f"n_labels must be >= 1 when set, got {self.n_labels}")
+        # aux_weight is a silent no-op without a classifier head — normalise it to
+        # 0.0 so an unsupervised config reads honestly (frozen → object.__setattr__).
+        if self.n_labels is None and self.aux_weight:
+            object.__setattr__(self, "aux_weight", 0.0)
+
 
 class AttnTopKSAE(nn.Module):
     """Attention-prefixed TopK SAE (n-orca ``bio_sae_attn_topk_f1``).
