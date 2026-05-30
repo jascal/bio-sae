@@ -31,7 +31,7 @@ foundation model (ESM-2) as the host.
 
 ## Status
 
-Pre-alpha, **Phase 0**. The scaffold is feature-complete (60 tests, all
+Pre-alpha, **Phase 0**. The scaffold is feature-complete (105 tests, all
 passing). The **synthetic floor** experiment has been run end-to-end on
 real ESM-2 weights — first headline numbers below.
 
@@ -821,6 +821,146 @@ The first run shook out three real bugs, all now fixed and regression-tested:
    to chunk size, and correct handling of dead latents / degenerate
    features.
 
+## JEPA Experts Integration
+
+### Motivation
+
+The synthetic-floor result above is blunt: a per-residue reconstruction
+SAE read off raw ESM-2 activations recovers **0 %** of the planted
+**motif** tier at cov95, and *more* ESM-2 capacity doesn't move it
+(§ "Headline results" point 3). The diagnosis throughout this repo — the
+attention-prefix (Family F1) and supervised (Family G) experiments, and
+the ISF / H-ISF ensemble work — keeps landing on the same lever:
+**diversity of substrate**, not a bigger single SAE. Motifs are
+*relational, multi-residue, predictive* structure, and a reconstruction
+objective on one residue at a time has no reason to carve them out.
+
+A **Joint-Embedding Predictive Architecture (JEPA)** is built around
+exactly that kind of structure. Instead of reconstructing inputs, it
+predicts the *latents* of masked / future content from a visible context,
+with an EMA target encoder to prevent collapse (I-JEPA, V-JEPA). The
+`biosae.experts` package brings that idea to proteins as a **modular
+expert** an SAE can then interpret:
+
+```
+ESM-2 acts ──▶ JEPA context encoder ──▶ predictive latents ──▶ SAE ──▶ scored vs GT
+                       │                        ▲                 (esm | jepa | concat)
+                       ▼                        │
+              EMA target encoder ──── predict masked/future ────┘
+              (stop-grad)            (+ action: mutation / shift)
+```
+
+The SAE's job is unchanged — it provides interpretability on top of
+whatever latents it's fed. What changes is the *feed*: ESM-2 alone, the
+JEPA expert's latents, or the two concatenated (the substrate-diversity
+ensemble).
+
+### What's implemented
+
+| piece | file | role |
+|-------|------|------|
+| `Expert` / `IdentityExpert` / `Router` / `ExpertEnsemble` | `biosae/experts/base.py` | expert contract + input-based routing (`uniform` / `input_norm` / `learned`) + `concat`/`route` fusion |
+| `ProteinJEPA`, `train_protein_jepa` | `biosae/experts/jepa_expert.py` | protein-native JEPA: context + EMA target encoder + predictor, masked (`span`) / causal (`future`) representation-prediction objective |
+| `JepaExpert` | `biosae/experts/jepa_expert.py` | wraps a JEPA as an `Expert`: `encode()` → latents, `predict(context, action)` → future/counterfactual latents (`action` = sequence shift or `mutation_action(aa)`) |
+| `HFJepaBackbone` | `biosae/experts/jepa_expert.py` | gracefully-degrading loader for `facebook/vjepa2-*` / `quentinll/lewm-*` |
+| `coextract`, `CoExtraction` | `biosae/experts/extract.py` | one pass → aligned ESM-2 **and** JEPA feeds (residue + pooled), `feed("esm"\|"jepa"\|"concat")` |
+| `FlatJepaScorer` | `biosae/experts/jepa_expert.py` | adapts an expert to `score_against_ground_truth`'s `(x_hat, z)` API (least-squares readout VE) |
+
+### A note on the V-JEPA 2 / LeWorldModel checkpoints
+
+The requested Hugging Face targets are loaded through `HFJepaBackbone`, but
+honesty matters here: **`facebook/vjepa2-*` is a video ViT and
+`quentinll/lewm-*` is a robotics world model** — neither natively ingests
+amino-acid sequences. The adapter therefore projects ESM-2 activations into
+the backbone's predictor latent width rather than pretending proteins are
+video, and it **degrades cleanly**: it raises a typed
+`JepaBackendUnavailable` with an actionable message when the checkpoint's
+architecture isn't supported by the installed stack (V-JEPA 2 needs
+`transformers>=4.53`; LeWM needs the `stable_worldmodel` package), so the
+**native `ProteinJEPA` is always a working fallback**. Treat any HF-backbone
+transfer result as an experimental probe, not a structural-biology prior.
+
+```python
+from biosae.experts import HFJepaBackbone
+HFJepaBackbone.metadata("facebook/vjepa2-vitl-fpc64-256")
+# {'hidden_size': 1024, 'kind': 'vjepa2', 'pred_hidden_size': 384}
+HFJepaBackbone.available("facebook/vjepa2-vitl-fpc64-256")   # False on transformers<4.53
+```
+
+### Usage
+
+```bash
+# Run a JEPA expert on one protein (tries the HF backbone, falls back to
+# a native ProteinJEPA; prints latent stats + a masked-span prediction +
+# a mutation-action counterfactual).
+python -m biosae.experts.jepa_expert \
+    --model facebook/vjepa2-vitl-fpc64-256 \
+    --sequence MKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG
+
+# Train a diverse ensemble of JEPA experts (seeds + span/future masking).
+python scripts/train_jepa_experts.py --config configs/jepa_expert_sae.yaml --out jepa_experts
+
+# Baselines vs. JEPA ensemble: train + score SAEs on esm / jepa / concat feeds
+# across all biological tiers (500-protein synthetic subset).
+python scripts/ensemble_sae_jepa_eval.py --config configs/jepa_expert_sae.yaml
+python scripts/ensemble_sae_jepa_eval.py --config configs/jepa_sae.yaml --experts esm2,jepa
+```
+
+```python
+# Train an SAE directly on JEPA encoder latents (or ESM ⊕ JEPA).
+from biosae.experts import JepaConfig, JepaExpert, coextract
+from biosae.proteins.esm_extract import EsmExtractor
+from biosae.sae.trainers import SAEConfig, train_sae
+
+extractor = EsmExtractor("facebook/esm2_t6_8M_UR50D")
+expert = JepaExpert.native(JepaConfig(d_in=320, d_latent=256, epochs=60))
+co = coextract(records, extractor, layer=6, jepa=expert)   # one ESM-2 pass
+sae, _ = train_sae(co.feed("concat"), SAEConfig("topk", 1024, 32, 0., 200, 4096, 1e-3, "cpu", 0))
+```
+
+Config knobs (`configs/jepa_expert_sae.yaml`): `jepa.n_experts`,
+`jepa.d_latent` (latent projection dim), `jepa.mask_mode` (`span`/`future`)
++ `jepa.horizon` (prediction horizon), `ensemble.routing`
+(`uniform`/`input_norm`/`learned`), `ensemble.fusion` (`concat`/`route`).
+
+### Example result — 500-protein synthetic subset
+
+`runs/jepa_ensemble/summary.json` (committed), produced by
+`ensemble_sae_jepa_eval.py` on 500 planted-motif proteins,
+`esm2_t6_8M_UR50D` layer 6, CPU. Same SAE (`topk`, width 1024, k=32) on
+each feed; only the substrate differs.
+
+| feed     | d_feed | VE        | cov@0.95 | mAUC      | categorical cov95 | **motif** (synthetic) cov95 / mAUC |
+|----------|--------|-----------|----------|-----------|-------------------|------------------------------------|
+| `esm`    |   320  | 0.886     | 0.588    | **0.871** | 0.833             | **0.0 %** / 0.696                  |
+| `jepa`   |   256  | **0.986** | 0.588    | 0.853     | 0.833             | **0.0 %** / 0.640                  |
+| `concat` |   576  | 0.942     | 0.588    | 0.855     | 0.833             | **0.0 %** / 0.644                  |
+
+*Legend: **VE** = variance explained (reconstruction quality of the feed);
+**mAUC** = mean over GT features of the best per-latent AUC; **cov@0.95** =
+fraction of GT features with best AUC ≥ 0.95 (the same headline triple the
+rest of the repo reports).*
+
+Raw `jepa` latents *before any SAE* (least-squares readout): retained
+VE = **0.723**, mAUC = 0.682 — the predictive encoder keeps ~72 % of the
+ESM-2 activation variance linearly recoverable.
+
+**What this says — honestly.** The JEPA substrate reconstructs far more
+cleanly (VE 0.986 vs 0.886) and its latents are dense, smooth, and retain
+most of the host variance — useful for ensembling. But **the motif tier
+stays at 0 % cov95 on *every* feed**. That is not a JEPA failure; it
+reproduces this repo's established result that the motif wall is the
+**per-residue scoring metric + the reconstruction objective**, not the
+substrate (see the synthetic-floor notes and the Family F1/G experiments —
+a region-level motif scored per residue can't clear cov95, and the proven
+levers are *occurrence-level* scoring plus *supervision*, not a richer
+encoder). So the JEPA expert's demonstrated value here is **substrate
+diversity** (higher VE, an extra routable view for the ISF/H-ISF ensemble),
+exactly the lever the rest of bio-sae keeps finding — and the natural next
+step is a *supervised* JEPA (Family G objective on the predictor) scored at
+occurrence level, where motif recovery has actually been shown to move.
+Numbers are committed in `runs/jepa_ensemble_summary.json`.
+
 ## Quickstart
 
 ```bash
@@ -865,6 +1005,8 @@ open docs/index.html
 | `sweep_widths.py`                       | Variant × width grid on one feed (analog of econ-sae's)                       | `runs/sweep_widths/`, `runs/sweep_widths_summary.json` |
 | `sweep_layers.py`                       | Compare ESM-2 layers as SAE feeds (bio-specific)                              | `runs/sweep_layers/`, `runs/sweep_layers_summary.json` |
 | `synthetic_floor_experiment.py`         | Substrate sanity floor on synthetic-only data (no real biology labels)        | `runs/synthetic_floor/`, `runs/synthetic_floor_summary.json` |
+| `train_jepa_experts.py`                 | Train a diverse ensemble of protein-native JEPA world-model experts            | `runs/<out>/{expert_*.pt, expert_*.json, train_summary.json}` |
+| `ensemble_sae_jepa_eval.py`             | Baselines vs. JEPA ensemble: SAE recovery on esm / jepa / concat feeds per tier | `runs/jepa_ensemble/summary.json` |
 | `positional_experiment.py`              | Compare positional encoders (none / sinusoidal / learned / rope)              | `runs/positional/`, `runs/positional_summary.json` |
 | `intervention_experiment.py`            | Folding-intervention sweep: ablate SAE latents and re-fold with ESMFold       | `runs/intervention/`, `runs/intervention_summary.json` |
 | `visualize.py`                          | Single-file HTML walkthrough — reads every summary above, gracefully placeholders for missing inputs | `docs/index.html`                                 |
@@ -940,12 +1082,14 @@ biosae/
 │                  feature_matrix builder, annotator orchestrator
 ├── sae/           trainers (reference + sae-forge dispatch), evaluation,
 │                  positional variant, folding_metrics
+├── experts/       Expert abstraction + Router/ensemble, protein-native
+│                  JEPA world model, V-JEPA2/LeWM adapter, ESM+JEPA coextract
 ├── ground_truth.py   thin re-export
 └── polygram_bridge.py   Dictionary build + cancellation harness
 
 scripts/           one file per pipeline stage (see Scripts table)
 configs/           YAML configs for build + train
-tests/             60 tests, all passing
+tests/             105 tests, all passing
 data/, runs/, docs/   gitignored output dirs
 ```
 
@@ -973,7 +1117,7 @@ comparable.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -q              # 60 tests, ~6s on a laptop
+pytest tests/ -q              # 105 tests, ~20s on a laptop
 ```
 
 The tests deliberately don't hit ESM-2 weights, the UniProt REST API,

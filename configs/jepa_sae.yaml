@@ -1,0 +1,44 @@
+# Minimal single-JEPA-expert SAE config (fast iteration).
+#
+# A trimmed sibling of configs/jepa_expert_sae.yaml: one expert, fewer
+# epochs, and only the esm vs jepa feeds (no concat). Good for a laptop
+# smoke run before committing to the full ensemble sweep.
+#
+#   python scripts/ensemble_sae_jepa_eval.py --config configs/jepa_sae.yaml
+
+substrate:
+  source: synthetic
+  n_proteins: 200
+  max_length: 320
+  esm_model: facebook/esm2_t6_8M_UR50D
+  layer: 6
+  seed: 0
+
+jepa:
+  n_experts: 1
+  d_latent: 256
+  depth: 2
+  predictor_depth: 2
+  n_heads: 4
+  mask_mode: span
+  mask_ratio: 0.25
+  horizon: 0
+  ema_decay: 0.996
+  epochs: 40
+  batch_proteins: 16
+  lr: 1.0e-3
+
+sae:
+  variant: topk
+  width: 1024
+  k: 32
+  epochs: 120
+  batch_size: 4096
+  lr: 1.0e-3
+
+ensemble:
+  feeds: [esm, jepa]
+  fusion: concat
+  routing: input_norm
+
+device: cpu

@@ -63,6 +63,16 @@ viz = [
   "matplotlib>=3.7",
   "seaborn>=0.13",
 ]
+jepa = [
+  # JEPA expert backbones. The native ProteinJEPA needs nothing beyond the
+  # core deps (torch + transformers for ESM-2). huggingface-hub is used for
+  # offline cache reads of the optional HF backbones; loading V-JEPA 2
+  # (facebook/vjepa2-*) *weights* additionally requires transformers>=4.53
+  # — until then HFJepaBackbone degrades to a typed error and ProteinJEPA
+  # is the fallback. LeWorldModel (quentinll/lewm-*) needs stable-worldmodel.
+  "huggingface-hub>=0.23",
+  # "transformers>=4.53",   # uncomment to enable V-JEPA 2 weight-backed inference
+]
 dev = [
   "pytest>=7",
   "pytest-cov>=4",

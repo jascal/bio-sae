@@ -1,0 +1,114 @@
+{
+  "config_path": "configs/jepa_expert_sae.yaml",
+  "device": "cpu",
+  "n_proteins": 500,
+  "n_residues": 94079,
+  "d_in": 320,
+  "n_experts": 2,
+  "fusion": "concat",
+  "feeds": {
+    "esm": {
+      "d_feed": 320,
+      "variance_explained": 0.8855502903461456,
+      "coverage_at_0.95": 0.5882352941176471,
+      "mean_best_auc": 0.8707558581991224,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9437678310030733,
+        "synthetic": 0.6955271234696406
+      },
+      "wall_time_s": 266.2833697795868
+    },
+    "jepa": {
+      "d_feed": 256,
+      "variance_explained": 0.9859802424907684,
+      "coverage_at_0.95": 0.5882352941176471,
+      "mean_best_auc": 0.8526691956244822,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9413688357032687,
+        "synthetic": 0.6397900594353947
+      },
+      "wall_time_s": 189.679771900177
+    },
+    "concat": {
+      "d_feed": 576,
+      "variance_explained": 0.9415648691356182,
+      "coverage_at_0.95": 0.5882352941176471,
+      "mean_best_auc": 0.8545620012661007,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9422578646500622,
+        "synthetic": 0.6440919291445931
+      },
+      "wall_time_s": 259.16573214530945
+    }
+  },
+  "raw_jepa_probe": {
+    "retained_VE": 0.7230461537837982,
+    "coverage_at_0.95": 0.0,
+    "mean_best_auc": 0.6822154799676092,
+    "motif_cov95": 0.0,
+    "note": "expert_0 latents scored directly (least-squares readout VE), no SAE"
+  },
+  "total_wall_time_s": 1343.621464252472,
+  "rows": [
+    {
+      "name": "jepa_esm",
+      "feed": "esm",
+      "variant": "topk",
+      "variance_explained": 0.8855502903461456,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8707558581991224,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9437678310030733,
+        "synthetic": 0.6955271234696406
+      }
+    },
+    {
+      "name": "jepa_jepa",
+      "feed": "jepa",
+      "variant": "topk",
+      "variance_explained": 0.9859802424907684,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8526691956244822,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9413688357032687,
+        "synthetic": 0.6397900594353947
+      }
+    },
+    {
+      "name": "jepa_concat",
+      "feed": "concat",
+      "variant": "topk",
+      "variance_explained": 0.9415648691356182,
+      "coverage_0_95": 0.5882352941176471,
+      "mean_best_auc": 0.8545620012661007,
+      "per_tier_coverage": {
+        "categorical": 0.8333333333333334,
+        "synthetic": 0.0
+      },
+      "per_tier_mauc": {
+        "categorical": 0.9422578646500622,
+        "synthetic": 0.6440919291445931
+      }
+    }
+  ]
+}
