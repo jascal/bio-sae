@@ -19,7 +19,9 @@ from biosae.experts.jepa_expert import (
     JepaConfig,
     JepaExpert,
     ProteinJEPA,
+    SupervisedJepaConfig,
     mutation_action,
+    train_label_jepa,
     train_protein_jepa,
 )
 
@@ -28,6 +30,7 @@ __all__ = [
     "Expert", "IdentityExpert", "Router", "ExpertEnsemble",
     # jepa
     "JepaConfig", "ProteinJEPA", "train_protein_jepa", "JepaExpert",
+    "SupervisedJepaConfig", "train_label_jepa",
     "HFJepaBackbone", "JepaBackendUnavailable", "FlatJepaScorer",
     "mutation_action",
     # extraction

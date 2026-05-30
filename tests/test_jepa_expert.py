@@ -19,6 +19,8 @@ from biosae.experts import (
     JepaExpert,
     ProteinJEPA,
     Router,
+    SupervisedJepaConfig,
+    train_label_jepa,
     train_protein_jepa,
 )
 from biosae.experts.jepa_expert import (
@@ -292,3 +294,81 @@ def test_coextraction_without_jepa_falls_back_to_esm():
     assert torch.equal(co.concat_residue(), co.esm_residue)
     with pytest.raises(ValueError, match="no JEPA feed"):
         co.feed("jepa")
+
+
+# ---------------------------------------------------------------------------
+# Supervised Label-JEPA (P2)
+# ---------------------------------------------------------------------------
+def _sup_cfg(**kw) -> SupervisedJepaConfig:
+    base = dict(d_in=16, d_latent=32, depth=1, predictor_depth=1, n_heads=4,
+                n_motif_classes=4, epochs=0, batch_proteins=8, device="cpu", seed=0)
+    base.update(kw)
+    return SupervisedJepaConfig(**base)
+
+
+def _labelled_proteins(n=16, d=16, L=30, n_classes=4, seed=1):
+    """Proteins with a class-discriminative span: class c fires on feature c."""
+    g = torch.Generator().manual_seed(seed)
+    acts, occ = [], []
+    for i in range(n):
+        x = torch.randn(L, d, generator=g) * 0.3
+        c = 1 + (i % (n_classes - 1))          # classes 1..M (0 is background)
+        s = 4 + (i % 8)
+        x[s:s + 5, c] += 2.0
+        acts.append(x)
+        occ.append([(s, s + 5, c)])
+    return acts, occ
+
+
+def test_supervised_config_validates():
+    with pytest.raises(ValueError, match="n_motif_classes"):
+        _sup_cfg(n_motif_classes=1)
+    with pytest.raises(ValueError, match="label_pool"):
+        _sup_cfg(label_pool="bogus")
+    with pytest.raises(ValueError, match="supervision"):
+        _sup_cfg(supervision="nope")
+
+
+def test_label_head_present_only_for_supervised_cfg():
+    assert ProteinJEPA(_sup_cfg()).label_head is not None
+    assert ProteinJEPA(_cfg()).label_head is None          # plain JepaConfig → no head
+
+
+def test_predict_label_shape_and_guard():
+    m = ProteinJEPA(_sup_cfg(n_motif_classes=5)).eval()
+    z_pred = torch.randn(3, 12, 32)
+    span = torch.zeros(3, 12, dtype=torch.bool)
+    span[:, 4:8] = True
+    logits = m.predict_label(z_pred, span)
+    assert logits.shape == (3, 5)
+    # max-pool over an empty span must not NaN/inf (nan_to_num guard).
+    empty = torch.zeros(3, 12, dtype=torch.bool)
+    assert torch.isfinite(m.predict_label(z_pred, empty)).all()
+    # the plain model has no head
+    with pytest.raises(RuntimeError, match="no label head"):
+        ProteinJEPA(_cfg()).predict_label(z_pred, span)
+
+
+def test_label_jepa_learns_and_does_not_collapse():
+    acts, occ = _labelled_proteins(n=16, n_classes=4)
+    cfg = _sup_cfg(n_motif_classes=4, epochs=40, lr=3e-3, label_weight=1.0)
+    model, hist = train_label_jepa(acts, occ, cfg)
+    # CE drops below the uniform-prior baseline ln(4) ≈ 1.386, accuracy rises.
+    assert hist["ce"][-1] < hist["ce"][0]
+    assert hist["ce_acc"][-1] > 0.5
+    assert hist["target_var"][-1] > 1e-4                   # EMA target didn't collapse
+    # encode stays label-free (one protein, no spans needed)
+    z = JepaExpert(model).encode(acts[0])
+    assert z.shape == (acts[0].shape[0], cfg.d_latent)
+
+
+def test_label_jepa_rejects_misaligned_occurrences():
+    acts, occ = _labelled_proteins(n=8)
+    with pytest.raises(ValueError, match="align"):
+        train_label_jepa(acts, occ[:-1], _sup_cfg(epochs=1))
+
+
+def test_supervised_cfg_inherits_jepa_validation():
+    # SupervisedJepaConfig must still enforce the base JepaConfig invariants.
+    with pytest.raises(ValueError, match="divisible"):
+        _sup_cfg(d_latent=30, n_heads=4)

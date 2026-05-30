@@ -108,6 +108,40 @@ class JepaConfig:
             raise ValueError(f"d_latent {self.d_latent} not divisible by n_heads {self.n_heads}")
 
 
+@dataclass
+class SupervisedJepaConfig(JepaConfig):
+    """Proposal P2 (docs/supervised-jepa-proposals.md): **Label-JEPA**.
+
+    Adds a per-masked-span motif-classification objective to the JEPA. The
+    context encoder never sees the masked residues, so predicting *which motif
+    (if any) occupies the span* forces motif inference from flanking context —
+    the generalizing signal a per-residue reconstruction SAE lacks. The SAE
+    still reads the label-free context-encoder latents at inference; the label
+    head exists only to shape that dictionary during training.
+
+    ``n_motif_classes`` counts the background/none class plus each motif type
+    (e.g. 1 + 7 = 8 for the synthetic library). ``motif_mask_prob`` biases the
+    masker toward true occurrence spans (motifs are sparse, so uniform masking
+    would feed the classifier almost only background).
+    """
+
+    supervision: str = "masked_label"
+    n_motif_classes: int = 8
+    label_weight: float = 1.0
+    motif_mask_prob: float = 0.7
+    label_pool: str = "max"             # span → vector pool for the label head
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.supervision != "masked_label":
+            raise ValueError(f"SupervisedJepaConfig.supervision must be 'masked_label', "
+                             f"got {self.supervision!r}")
+        if self.n_motif_classes < 2:
+            raise ValueError("n_motif_classes must be >= 2 (background + >=1 motif)")
+        if self.label_pool not in ("max", "mean"):
+            raise ValueError(f"label_pool must be 'max'|'mean', got {self.label_pool!r}")
+
+
 # ---------------------------------------------------------------------------
 # Transformer block (pre-LN MHA + MLP)
 # ---------------------------------------------------------------------------
@@ -196,6 +230,16 @@ class ProteinJEPA(nn.Module):
         self.pred_ln = nn.LayerNorm(cfg.d_latent)
         self.pred_head = nn.Linear(cfg.d_latent, cfg.d_latent)
 
+        # P2 (Label-JEPA): optional per-masked-span motif classifier off the
+        # predictor output. Present only for a SupervisedJepaConfig; the SAE
+        # never reads this head (it reads context_encoder latents).
+        n_cls = getattr(cfg, "n_motif_classes", None)
+        self.label_head: Optional[nn.Module] = (
+            nn.Linear(cfg.d_latent, int(n_cls))
+            if getattr(cfg, "supervision", None) == "masked_label" and n_cls
+            else None
+        )
+
     # -- core operations ---------------------------------------------------
     def encode(
         self, x: torch.Tensor, key_padding_mask: Optional[torch.Tensor] = None
@@ -242,6 +286,26 @@ class ProteinJEPA(nn.Module):
         for blk in self.predictor:
             h = blk(h, key_padding_mask=key_padding_mask)
         return self.pred_head(self.pred_ln(h))
+
+    def predict_label(
+        self, z_pred: torch.Tensor, span_mask: torch.Tensor, pool: str = "max"
+    ) -> torch.Tensor:
+        """P2: classify the masked span's motif from the predictor output.
+
+        ``z_pred`` : ``(B,T,d_latent)`` predictor output.
+        ``span_mask`` : ``(B,T)`` bool, True over the masked span to classify.
+        Returns ``(B, n_motif_classes)`` logits — one motif call per protein.
+        """
+        if self.label_head is None:
+            raise RuntimeError("ProteinJEPA has no label head (need SupervisedJepaConfig)")
+        m = span_mask.unsqueeze(-1)
+        if pool == "max":
+            pooled = z_pred.masked_fill(~m, float("-inf")).max(dim=1).values
+            pooled = torch.nan_to_num(pooled, neginf=0.0)        # empty span → zeros
+        else:
+            counts = span_mask.sum(dim=1, keepdim=True).clamp(min=1)
+            pooled = (z_pred * m).sum(dim=1) / counts
+        return self.label_head(pooled)
 
     @torch.no_grad()
     def ema_update(self) -> None:
@@ -356,6 +420,118 @@ def train_protein_jepa(
             nb += 1
         history["loss"].append(ep_loss / max(nb, 1))
         history["target_var"].append(ep_var / max(nb, 1))
+    return model, history
+
+
+def _sample_supervised_mask(
+    occ: list[tuple],          # [(start, end, class_id), ...] for one protein, 0-based
+    length: int,
+    motif_mask_prob: float,
+    rng: np.random.Generator,
+) -> tuple[int, int, int]:
+    """Pick one (start, end, class) span to mask + classify for a protein.
+
+    With ``motif_mask_prob`` (and if the protein has occurrences) mask a true
+    motif span → its class; otherwise mask a length-matched **background**
+    window that avoids every occurrence → class 0. Returns ``(start, end, cls)``.
+    """
+    has_occ = len(occ) > 0
+    if has_occ and rng.random() < motif_mask_prob:
+        s, e, c = occ[int(rng.integers(0, len(occ)))]
+        return int(s), int(e), int(c)
+    # background span: length drawn from the occurrence lengths (or a default).
+    span_len = (int(occ[int(rng.integers(0, len(occ)))][1] - occ[0][0])
+                if has_occ else 4)
+    span_len = max(2, min(span_len, max(2, length - 1)))
+    occupied = np.zeros(length, dtype=bool)
+    for s, e, _ in occ:
+        occupied[int(s):int(e)] = True
+    for _ in range(20):
+        s = int(rng.integers(0, length - span_len + 1))
+        if not occupied[s:s + span_len].any():
+            return s, s + span_len, 0
+    # fall back to an occurrence if no clean background found
+    if has_occ:
+        s, e, c = occ[int(rng.integers(0, len(occ)))]
+        return int(s), int(e), int(c)
+    return 0, span_len, 0
+
+
+def train_label_jepa(
+    per_protein_acts: list[torch.Tensor],
+    per_protein_occ: list[list[tuple]],
+    cfg: SupervisedJepaConfig,
+) -> tuple[ProteinJEPA, dict]:
+    """Train Label-JEPA (P2): masked motif-annotation prediction from context.
+
+    ``per_protein_occ[i]`` is protein ``i``'s occurrence list of
+    ``(start, end, class_id)`` (residue-indexed, ``class_id`` in ``1..M``;
+    background spans are sampled on the fly with class 0). Joint loss
+    ``L_jepa + label_weight · CE(masked-span motif | context)``. The predictive
+    term and the EMA target stay (anti-collapse + a representation prior);
+    only the supervised head is new. Returns ``(model, history)`` with
+    ``loss``/``jepa``/``ce``/``ce_acc``/``target_var`` traces.
+    """
+    if len(per_protein_occ) != len(per_protein_acts):
+        raise ValueError("per_protein_occ must align with per_protein_acts")
+    torch.manual_seed(cfg.seed)
+    gen = torch.Generator().manual_seed(cfg.seed)
+    nprng = np.random.default_rng(cfg.seed)
+    device = torch.device(cfg.device)
+    model = ProteinJEPA(cfg).to(device)
+    if model.label_head is None:
+        raise ValueError("cfg did not produce a label head (supervision must be 'masked_label')")
+    opt = torch.optim.Adam([p for p in model.parameters() if p.requires_grad], lr=cfg.lr)
+    ce = nn.CrossEntropyLoss()
+
+    history: dict[str, list[float]] = {"loss": [], "jepa": [], "ce": [], "ce_acc": [], "target_var": []}
+    n = len(per_protein_acts)
+    for _epoch in range(cfg.epochs):
+        order = torch.randperm(n, generator=gen).tolist()
+        ep = {"loss": 0.0, "jepa": 0.0, "ce": 0.0, "acc": 0.0}
+        nb = 0
+        for start in range(0, n, cfg.batch_proteins):
+            idx = order[start: start + cfg.batch_proteins]
+            xb, pad = pad_proteins([per_protein_acts[j] for j in idx], device)
+            B, T, _ = xb.shape
+            qmask = torch.zeros(B, T, dtype=torch.bool, device=device)
+            labels = torch.zeros(B, dtype=torch.long, device=device)
+            for bi, j in enumerate(idx):
+                L = int(per_protein_acts[j].shape[0])
+                s, e, c = _sample_supervised_mask(
+                    per_protein_occ[j], L, cfg.motif_mask_prob, nprng)
+                qmask[bi, s:e] = True
+                labels[bi] = c
+
+            x_masked = torch.where(
+                qmask.unsqueeze(-1), model.mask_token.view(1, 1, -1).to(xb.dtype), xb)
+            context = model.context_encoder(x_masked, key_padding_mask=pad)
+            z_pred = model.predict(context, query_mask=qmask, key_padding_mask=pad)
+            with torch.no_grad():
+                z_tgt = model.target_encoder(xb, key_padding_mask=pad)
+
+            sel = qmask & (~pad)
+            l_jepa = nn.functional.smooth_l1_loss(z_pred[sel], z_tgt[sel])
+            logits = model.predict_label(z_pred, sel, pool=cfg.label_pool)
+            l_ce = ce(logits, labels)
+            loss = l_jepa + cfg.label_weight * l_ce
+
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            opt.step()
+            model.ema_update()
+
+            ep["loss"] += float(loss.detach())
+            ep["jepa"] += float(l_jepa.detach())
+            ep["ce"] += float(l_ce.detach())
+            ep["acc"] += float((logits.argmax(-1) == labels).float().mean().detach())
+            ep["target_var"] = float(z_tgt[sel].var().detach()) if sel.any() else 0.0
+            nb += 1
+        history["loss"].append(ep["loss"] / max(nb, 1))
+        history["jepa"].append(ep["jepa"] / max(nb, 1))
+        history["ce"].append(ep["ce"] / max(nb, 1))
+        history["ce_acc"].append(ep["acc"] / max(nb, 1))
+        history["target_var"].append(ep["target_var"])
     return model, history
 
 

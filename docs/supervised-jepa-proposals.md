@@ -141,6 +141,46 @@ mask span ─▶ context sees flanks only ─▶ predictor ─▶ [z_pred ; moti
 - **Falsifiable prediction:** beats P1 on *held-out-protein* occ-AUC
   (better generalization), equal or slightly worse on in-distribution.
 
+> **P2 — BUILT & MEASURED (this is the result).** Shipped:
+> `SupervisedJepaConfig` + `ProteinJEPA.predict_label` + `train_label_jepa`
+> (`biosae/experts/jepa_expert.py`), `scripts/supervised_jepa_floor.py`,
+> `configs/supervised_jepa.yaml`. Run: n=500 synthetic, **held-out
+> protein split** (375 train / 125 test), occurrence scorer, label-free
+> latents. Committed: `runs/supervised_jepa_floor_summary.json`.
+>
+> | held-out feed | occ mAUC | perm null | occ − null | occ cov95 |
+> |---|---|---|---|---|
+> | raw ESM-2 | **0.893** | 0.654 | +0.239 | 0.167 |
+> | JEPA unsup (control) | 0.662 | 0.627 | +0.035 | 0.0 |
+> | **JEPA Label-JEPA (P2)** | 0.761 | 0.611 | **+0.150** | 0.0 |
+>
+> **The mechanism works; the substrate is the bottleneck.** The masked-
+> annotation objective trained cleanly — held-in motif-class CE 1.70 → 0.36,
+> **accuracy 0.853** over 6 motifs + background, EMA target uncollapsed
+> (var 1.04) — and it **lifted the held-out latents +0.099 occ-mAUC over the
+> unsupervised JEPA control** (the honest A/B where only the objective
+> differs: 0.761 vs 0.662). The lift is **monotone across all six motifs**
+> (+0.046 … +0.167, largest on the wildcard-heavy EF_hand and Walker_B), and
+> P2 sits below ESM on every one — supervision helps uniformly, the substrate
+> caps it uniformly. So supervision *did* shape the dictionary, as P2
+> predicted. **But it did not clear the ESM bar (0.893).** A from-scratch
+> JEPA encoder (d_latent 128, depth 1, 375 proteins) starts so far below a
+> UR50-pretrained ESM-2 that the objective can't close the gap — the lever
+> here is *encoder pretraining*, not the supervision signal.
+>
+> This independently re-derives the Family-G result from the other
+> direction: Family G recovered 9/10 motifs at occurrence level by
+> supervising **on top of the ESM substrate** (attention-prefixed SAE), not a
+> from-scratch encoder. Both say the same thing — **supervise a strong
+> substrate.** Concrete next levers, in priority order:
+> 1. **ESM-init / ESM-distilled context encoder** (warm-start the JEPA encoder
+>    from ESM rather than random) — closes the substrate gap P2 exposed;
+> 2. **P1 on ESM latents** (occurrence-pooled aux head straight on ESM, no
+>    JEPA encoder) — the cheapest test of "is the encoder the whole story?";
+> 3. **P3 supervised target geometry** on the ESM-init encoder.
+> The supervision machinery (`predict_label` / `train_label_jepa` /
+> `score_occurrences`) is now in place to drive all three.
+
 ### P3 — Supervised target geometry (label-aware EMA target)
 
 Leave the predictor predicting latents, but **shape the target space** so
