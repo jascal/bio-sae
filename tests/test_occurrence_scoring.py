@@ -137,3 +137,25 @@ def test_ensemble_route_validates_shape_and_names():
         ensemble_route([0.5, 0.6])
     with pytest.raises(ValueError, match="recipe_names"):
         ensemble_route([[0.5, 0.6]], ["a", "b"])
+
+
+# ---------------------------------------------------------------------------
+# Graduation parity: bio-sae local ensemble_route == saeforge.isf canonical
+# ---------------------------------------------------------------------------
+def test_ensemble_route_matches_saeforge_graduation():
+    """The local ensemble_route is the origin of saeforge.isf.ensemble_route;
+    on NaN-free input the two must agree on every shared metric, so the
+    graduated primitive is a faithful extraction (skip if sae-forge absent)."""
+    saeforge_isf = pytest.importorskip("saeforge.isf")
+    A = [
+        [0.90, 0.95, 0.70, 0.72],
+        [0.60, 0.62, 0.65, 0.66],
+        [0.55, 0.58, 0.99, 0.98],
+    ]
+    names = ["esm", "jepa_unsup", "p1_motif"]
+    local = ensemble_route(A, names, host=0)
+    forge = saeforge_isf.ensemble_route(A, names, host=0)
+    for key in ("router_names", "ensemble_best", "ensemble_mauc",
+                "ensemble_lift", "retained", "frac_beats_host",
+                "router_composition", "per_recipe_mauc"):
+        assert local[key] == forge[key], f"divergence on {key!r}"
