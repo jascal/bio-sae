@@ -1029,6 +1029,37 @@ unsupervised baseline. Net: the occurrence-level metric is the right success
 measure for region features in both regimes; Family G is the lever for the
 hard (small-motif) regime and a sharpener in the easy (large-domain) one.
 
+## 4.8.7 Does the attention prefix earn its compute? Real-data ablation (2026-05-29)
+
+`scripts/attn_real_ablation.py` reloads the §4.8.6 real-domain checkpoints
+and re-scores the held-out real proteins with attention ON vs zeroed
+(`disable_attn`) — the real-data analog of §4.8.2's synthetic ablation, no
+retraining:
+
+| checkpoint | ‖attn_out‖/‖x‖ | VE ON→OFF | occ recovered ON/OFF | per-res mean ON→OFF |
+|---|---|---|---|---|
+| control (unsup) | 0.50 | 0.825 → 0.664 (**−0.161**) | **9/10 → 9/10** | 0.801 → 0.791 |
+| supervised F1∘G | 0.42 | 0.808 → 0.738 (**−0.070**) | **9/10 → 9/10** | 0.890 → 0.833 (−0.057) |
+
+**Same verdict as synthetic (§4.8.2), even sharper: attention is a
+*reconstruction* aid, not a *recovery* aid.** Zeroing it craters VE
+(−0.16 control / −0.07 supervised) and it carries ~42–50 % of each residue's
+representation norm (vs 0.30 on synthetic — real proteins are more diverse,
+so cross-residue context helps reconstruction more). **But occurrence-level
+domain detection is unchanged with it off** — 9/10 recovered either way, mean
+occ peak Δ ≤ 0.002, per-family deltas tiny and bidirectional (noise). The
+only discrimination it buys is **per-residue sharpness in the supervised
+model** (+0.057), i.e. attention + supervision jointly sharpen per-residue
+firing — but per-residue is not the recovery metric.
+
+**So for bio-sae's actual goal (recover interpretable domain features at the
+occurrence level), the attention prefix F1 does not earn its compute** — a
+flat supervised TopK SAE would very likely recover real domains as well. The
+attention block is justified only when faithful reconstruction VE is itself a
+goal. The recovery lever is supervision (Family G); for large real domains
+even that is unnecessary (§4.8.6 salience law). Cleanly: **F1 does
+reconstruction work, G does recovery work** — and the two are separable.
+
 ## 5. Open design questions
 
 1. **Greedy set-cover variant**: should it cover labels at fixed AUC
