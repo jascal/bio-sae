@@ -1,0 +1,16 @@
+# Minimal pooled SAE for the forge capability-acceptance fixture.
+# Single TopK w=1024 k=64 pooled SAE on the n=5000 UniRef50 bundle.
+# Output run dir is renamed to runs/uniref50_n5000/pooled_w1024_k64 afterward.
+bundle: data/bio_bundle_uniref50.safetensors
+
+feeds: [pooled]
+variants: [topk]
+widths: [1024]
+k_values: [64]
+sparsity_lambdas: [1.0e-3]
+
+epochs: 200
+batch_size: 4096
+lr: 1.0e-3
+seed: 0
+device: cuda
