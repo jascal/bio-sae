@@ -47,7 +47,8 @@ from safetensors.numpy import load_file as load_st_numpy
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, "/Users/allans/code/polygram")
+# polygram is a sibling repo in the shared workspace dir.
+sys.path.insert(0, str(REPO_ROOT.parent / "polygram"))
 
 from polygram import SAEFeatureRecord
 from polygram.compression import Compressor, BlockSpec
@@ -60,7 +61,7 @@ from polygram.confirmation.decoder_geometry import DecoderGeometryConfirmer
 from polygram.encoding import MPSRung1, Rung5
 
 
-BIOSAE_ROOT = Path("/Users/allans/code/bio-sae")
+BIOSAE_ROOT = REPO_ROOT
 SOURCE_SAE = BIOSAE_ROOT / "runs" / "uniref50_n5000" / "pooled_w1024_k64" / "sae.pt"
 SHADOW_DIR = BIOSAE_ROOT / "runs" / "polygram_partition" / "uniref50_n5000"
 OUT_DIR = BIOSAE_ROOT / "runs" / "forge" / "cell_c_experiment"

@@ -13,7 +13,7 @@ from pathlib import Path
 from saeforge import sweep_pareto_capability
 from saeforge.datasets import CapabilityDataset
 
-BIOSAE_ROOT = Path("/Users/allans/code/bio-sae")
+BIOSAE_ROOT = Path(__file__).resolve().parents[1]
 SAE_PARTITION = (
     BIOSAE_ROOT / "runs" / "polygram_partition" / "uniref50_n5000"
     / "pooled_w1024_k64_partition.pt"

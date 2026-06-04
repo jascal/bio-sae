@@ -21,7 +21,7 @@ from pathlib import Path
 from saeforge import sweep_pareto_capability
 from saeforge.datasets import CapabilityDataset
 
-BIOSAE_ROOT = Path("/Users/allans/code/bio-sae")
+BIOSAE_ROOT = Path(__file__).resolve().parents[1]
 SHADOW_DIR = BIOSAE_ROOT / "runs" / "polygram_partition" / "uniref50_n5000"
 CELL_C_DIR = BIOSAE_ROOT / "runs" / "forge" / "cell_c_experiment"
 OUTPUT_DIR = BIOSAE_ROOT / "runs" / "forge" / "cell_c_sweep"
