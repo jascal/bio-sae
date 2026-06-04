@@ -1,12 +1,13 @@
-# Real-biology bundle at n=5000 — 5× the prior run. Targets statistically
-# robust hierarchical recovery: mid-prevalence GO terms (n_pos ≈ 50-200)
-# become a usable population for AUC scoring.
+# Real-biology bundle at n=10000 UniRef50 representatives — 2× the n=5000
+# fixture. Targets statistically robust hierarchical recovery: mid-prevalence
+# GO terms (n_pos ≈ 50-200) become a usable population for AUC scoring, and the
+# robust band (n_pos ≥ 10) widens enough to give a real cov95 signal.
 model_id: facebook/esm2_t6_8M_UR50D
 layers: [6]
 pooling: mean
 max_length: 512
 dtype: float32
-device: cpu
+device: cuda
 seed: 0
 
 sources:
