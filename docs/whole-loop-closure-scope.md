@@ -105,6 +105,26 @@ that localises where the closed loop breaks — and tests the
 `SUPERVISION_DEPENDENCE.md` prediction that the supervised-only tiers are the
 fragile ones.
 
+## Result — loop closed (n5000, full scale)
+
+First end-to-end run of the whole loop on a real foundation model
+(`runs/whole_loop_summary.json`, `scripts/whole_loop_summary.py`):
+
+- **Compression:** polygram zeroed 358 of 1024 features → **666 kept** (~35%
+  reduction).
+- **Overall:** pre-forge mAUC 0.785 / cov95 0.068 → retained mAUC 0.714 / cov95
+  0.016 — **forge tax ≈ 9% mAUC** (retained 91%), while reconstruction VE is
+  −791 ("cosine/reconstruction is the wrong question," now confirmed at scale on
+  the closed loop).
+- **Per source:** the tax concentrates in **Pfam** (retained 83.8%, cov95
+  0.72→0.04) vs GO/EC (~90%). This is **identical to the slice-only baseline**
+  (retained 91.8%, Pfam 83.8%), so polygram compression is ~free in capability
+  terms — it drops redundant features without touching the biology, and Pfam
+  fragility is a property of the forge, not the compression.
+
+This confirms the `SUPERVISION_DEPENDENCE.md` prediction: the sharp, high-AUC
+features (Pfam) are the fragile ones under the round-trip.
+
 *Note: bio-sae does not use OpenSpec; this scope lives as a doc rather than an
 `openspec/changes/` proposal (OpenSpec is reserved for the repos that already use
 it — n-orca, polygram, q-orca-lang, sae-forge, sm-sae).*
