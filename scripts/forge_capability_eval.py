@@ -286,6 +286,64 @@ def _grouped(host_auc, groups, forge_auc=None) -> dict:
     return out
 
 
+def _precompute_teachers(host, corpus, host_model: str, device: str):
+    """Per-sequence (input_ids, host last-layer hidden [CLS/EOS stripped]).
+
+    The teacher is the *host* ESM-2's representation — label-free, so it
+    carries no GT-label leakage into the downstream capability metric.
+    Stored on CPU; moved to ``device`` per step in the fine-tune loop.
+    """
+    import torch
+    from transformers import AutoTokenizer
+
+    tok_id = getattr(host.config, "_name_or_path", None) or host_model
+    tokenizer = AutoTokenizer.from_pretrained(tok_id)
+    inner = host.esm if hasattr(host, "esm") else host
+    inner.to(device).eval()
+    teachers = []
+    with torch.no_grad():
+        for seq in corpus:
+            enc = tokenizer(seq, return_tensors="pt").to(device)
+            h = inner(input_ids=enc["input_ids"]).last_hidden_state[0, 1:-1, :].float()
+            teachers.append((enc["input_ids"].cpu(), h.cpu()))
+    return teachers
+
+
+def _finetune_forged(forged_module, teachers, W_dec_np, *, steps, lr, device, batch_size=4):
+    """Representation-distillation fine-tune of the forged model.
+
+    Objective: ``MSE(forged_feature_coords @ W_dec, host_last_layer_hidden)``
+    per residue. Corrects the forged weights toward the host representation
+    the SAE scores against — *not* input reconstruction (the diagnostic showed
+    reconstruction VE anti-correlates with capability). Deterministic batching
+    (cycle by step index). Returns the per-step loss trace.
+    """
+    import torch
+    F = torch.nn.functional
+
+    W_dec_t = torch.from_numpy(W_dec_np).to(device).float()  # (n, d)
+    module = forged_module.to(device).train()
+    optim = torch.optim.AdamW(module.parameters(), lr=lr)
+    n = len(teachers)
+    losses: list[float] = []
+    for step in range(steps):
+        optim.zero_grad(set_to_none=True)
+        batch_loss = 0.0
+        for j in range(batch_size):
+            input_ids, host_h = teachers[(step * batch_size + j) % n]
+            input_ids = input_ids.to(device)
+            host_h = host_h.to(device)
+            forged_h = module(input_ids)[0, 1:-1, :].float()  # (L, n_features)
+            decoded = forged_h @ W_dec_t                        # (L, d_model)
+            loss = F.mse_loss(decoded, host_h) / batch_size
+            loss.backward()
+            batch_loss += float(loss.item())
+        optim.step()
+        losses.append(batch_loss)
+    module.eval()
+    return losses
+
+
 def _score_sae(sae, X, Y, latent_chunk: int = 512):
     """Thin wrapper around biosae's scorer."""
     from biosae.sae.evaluation import score_against_ground_truth
@@ -355,6 +413,17 @@ def main(argv: list[str] | None = None) -> dict:
                              "or a hand-tuned <1.0 value to avoid the "
                              "projector's LN-weight inflation footgun.")
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--finetune-steps", default="0",
+                        help="Comma-separated CUMULATIVE fine-tune checkpoints, "
+                             "e.g. '0,100,500'. 0 = no fine-tune (default). At each "
+                             "checkpoint the forged model is re-scored, so one run "
+                             "yields the whole trajectory. Requires a single basis "
+                             "(use --compressed-sae or a single --widths value).")
+    parser.add_argument("--finetune-lr", type=float, default=5e-4,
+                        help="AdamW lr for the representation-distillation fine-tune.")
+    parser.add_argument("--finetune-corpus-size", type=int, default=512,
+                        help="Held-out protein sequences (taken AFTER the eval "
+                             "proteins) used as the distillation corpus.")
     args = parser.parse_args(argv)
 
     args.output.mkdir(parents=True, exist_ok=True)
@@ -476,39 +545,44 @@ def main(argv: list[str] | None = None) -> dict:
             bases.append((n, _build_basis(W_dec_slice, kept_ids, norms),
                           W_dec_slice.astype(np.float32), "slice"))
 
-    for n_label, basis, W_dec_np, mode in bases:
-        print(f"\n[4/6 {mode} n={n_label}] forging → re-extracting → scoring")
-
-        t0 = time.monotonic()
-        forged_module, _host_again = _forge(
-            basis, args.host_model, args.device, scale_boost,
+    # Parse cumulative fine-tune checkpoints. [0] = no fine-tune (default).
+    ft_checkpoints = sorted({int(s) for s in args.finetune_steps.split(",") if s.strip()})
+    do_finetune = max(ft_checkpoints) > 0
+    if do_finetune and len(bases) != 1:
+        raise SystemExit(
+            "--finetune-steps sweep requires a single basis; pass --compressed-sae "
+            "or a single --widths value"
         )
-        forge_wall = time.monotonic() - t0
+    ft_corpus = []
+    if do_finetune:
+        # Held-out distillation corpus: sequences AFTER the eval proteins, so the
+        # teacher signal doesn't overlap the scored proteins.
+        allseq = sequences_df["sequence"].tolist()
+        ft_corpus = [s[: args.max_seq_len]
+                     for s in allseq[len(sequences): len(sequences) + args.finetune_corpus_size]]
+        if not ft_corpus:
+            ft_corpus = sequences
+            print("      [warn] no held-out sequences after the eval set; "
+                  "fine-tuning on the eval sequences (still label-free)")
+        print(f"      fine-tune: {len(ft_corpus)} held-out seqs, "
+              f"checkpoints={ft_checkpoints}, lr={args.finetune_lr}")
+        summary["finetune"] = {"checkpoints": ft_checkpoints, "lr": args.finetune_lr,
+                               "corpus_size": len(ft_corpus)}
 
+    def _eval_forged(forged_module, basis, W_dec_np, mode, forge_wall, extra):
+        """Extract forged activations → decode via W_dec → score → build row."""
         t0 = time.monotonic()
         forged_h = _extract_forged_activations(
             forged_module, host, sequences, args.device, pooled=pooled,
         )
         extract_wall = time.monotonic() - t0
-
-        # Decode forged hidden states (basis coords) back to host d_model via
-        # the SAME basis's W_dec, so the original SAE can encode them.
-        # forged_h is (Nres, n), W_dec_np is (n, d) → decoded (Nres, d).
-        W_dec_t = torch.from_numpy(W_dec_np)
-        forged_decoded = forged_h.float() @ W_dec_t  # (Nres, d_model)
-
+        forged_decoded = forged_h.float() @ torch.from_numpy(W_dec_np)  # (Nres, d_model)
         t0 = time.monotonic()
         forge_metrics = _score_sae(sae, forged_decoded, Y_subset)
         score_wall = time.monotonic() - t0
-
-        retained_mauc = forge_metrics["mean_best_auc"] / max(
-            host_metrics["mean_best_auc"], 1e-9
-        )
-        retained_cov95 = (
-            forge_metrics["coverage_at_0.95"]
-            / max(host_metrics["coverage_at_0.95"], 1e-9)
-        )
-
+        retained_mauc = forge_metrics["mean_best_auc"] / max(host_metrics["mean_best_auc"], 1e-9)
+        retained_cov95 = (forge_metrics["coverage_at_0.95"]
+                          / max(host_metrics["coverage_at_0.95"], 1e-9))
         forge_auc = forge_metrics["per_feature_best_auc"]
         row = {
             "n_features": int(basis.n_features),
@@ -523,14 +597,40 @@ def main(argv: list[str] | None = None) -> dict:
             "forge_wall_s": round(forge_wall, 2),
             "extract_wall_s": round(extract_wall, 2),
             "score_wall_s": round(score_wall, 2),
+            **extra,
         }
-        print(f"      {mode}@n={basis.n_features}: VE={row['variance_explained']:.3f}, "
-              f"mAUC={row['mean_best_auc']:.3f}, "
-              f"cov95={row['coverage_at_0.95']:.3f}  "
-              f"retained: mAUC={retained_mauc*100:.1f}% "
-              f"cov95={retained_cov95*100:.1f}%  "
-              f"wall: forge={forge_wall:.1f}s extract={extract_wall:.1f}s")
-        summary["forge"].append(row)
+        ftlbl = f" ft={extra['finetune_steps']}" if "finetune_steps" in extra else ""
+        print(f"      {mode}{ftlbl}@n={basis.n_features}: "
+              f"mAUC={row['mean_best_auc']:.3f}, cov95={row['coverage_at_0.95']:.3f}  "
+              f"retained: mAUC={retained_mauc*100:.1f}% cov95={retained_cov95*100:.1f}%")
+        return row
+
+    for n_label, basis, W_dec_np, mode in bases:
+        print(f"\n[4/6 {mode} n={n_label}] forging"
+              + (" + fine-tune sweep" if do_finetune else " → re-extracting → scoring"))
+        t0 = time.monotonic()
+        forged_module, _host_again = _forge(basis, args.host_model, args.device, scale_boost)
+        forge_wall = time.monotonic() - t0
+
+        if not do_finetune:
+            summary["forge"].append(
+                _eval_forged(forged_module, basis, W_dec_np, mode, forge_wall, {}))
+            continue
+
+        # Fine-tune sweep: one forge, re-scored at each cumulative checkpoint.
+        teachers = _precompute_teachers(host, ft_corpus, args.host_model, args.device)
+        prev, ft_loss = 0, None
+        for ckpt in ft_checkpoints:
+            if ckpt > prev:
+                losses = _finetune_forged(forged_module, teachers, W_dec_np,
+                                          steps=ckpt - prev, lr=args.finetune_lr,
+                                          device=args.device)
+                prev, ft_loss = ckpt, (losses[-1] if losses else None)
+                print(f"      [fine-tuned to {ckpt} steps; last loss {ft_loss:.4f}]")
+            summary["forge"].append(_eval_forged(
+                forged_module, basis, W_dec_np, mode, forge_wall,
+                {"finetune_steps": ckpt, "finetune_lr": args.finetune_lr,
+                 "finetune_final_loss": ft_loss}))
 
     out_path = args.output / "capability_eval_summary.json"
     out_path.write_text(json.dumps(summary, indent=2))

@@ -1,0 +1,54 @@
+{
+  "experiment": "fine-tune (representation distillation) sweep on the n10000 closed loop",
+  "run": "runs/bio_bundle_uniref50_n10000__pooled__topk_w1024_k64",
+  "feed": "pooled",
+  "n_proteins": 5000,
+  "min_n_pos": 10,
+  "forge_basis_n_features": 689,
+  "finetune": {
+    "checkpoints": [
+      0,
+      100,
+      500
+    ],
+    "lr": 0.0005,
+    "corpus_size": 512
+  },
+  "host_baseline": {
+    "mauc": 0.7823469173258126,
+    "cov95": 0.05660377358490566
+  },
+  "verdict": "gradient-correctable: 500 steps halves the mAUC tax and recovers Pfam cov95 4.4x (0.043->0.191); non-monotonic (100 worse than 0); still rising at 500.",
+  "trajectory": [
+    {
+      "finetune_steps": 0,
+      "overall_mauc": 0.7097848329547313,
+      "overall_retained_mauc": 0.9072507569671135,
+      "overall_cov95": 0.0025157232704402514,
+      "overall_retained_cov95": 0.04444444444444444,
+      "pfam_mauc": 0.8093822770428754,
+      "pfam_cov95": 0.0425531914893617,
+      "pfam_host_cov95": 0.6808510638297872
+    },
+    {
+      "finetune_steps": 100,
+      "overall_mauc": 0.7001492802333947,
+      "overall_retained_mauc": 0.8949345421167088,
+      "overall_cov95": 0.0012578616352201257,
+      "overall_retained_cov95": 0.02222222222222222,
+      "pfam_mauc": 0.7961962536420232,
+      "pfam_cov95": 0.02127659574468085,
+      "pfam_host_cov95": 0.6808510638297872
+    },
+    {
+      "finetune_steps": 500,
+      "overall_mauc": 0.7476515409310743,
+      "overall_retained_mauc": 0.955652184949699,
+      "overall_cov95": 0.01509433962264151,
+      "overall_retained_cov95": 0.26666666666666666,
+      "pfam_mauc": 0.8584758160936687,
+      "pfam_cov95": 0.19148936170212766,
+      "pfam_host_cov95": 0.6808510638297872
+    }
+  ]
+}
