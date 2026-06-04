@@ -1,0 +1,63 @@
+{
+  "loop": "SAE \u2192 polygram compress \u2192 forge ESM-2 \u2192 per-tier capability re-score",
+  "run": "runs/bio_bundle_uniref50_n10000__pooled__topk_w1024_k64",
+  "host_model": "facebook/esm2_t6_8M_UR50D",
+  "feed": "pooled",
+  "n_proteins": 10000,
+  "min_n_pos": 10,
+  "sae_width": 1024,
+  "n_features_scored": 1344,
+  "forge_mode": "polygram",
+  "forge_basis_n_features": 689,
+  "compression": null,
+  "overall": {
+    "pre_forge_mauc": 0.8072491309445156,
+    "pre_forge_cov95": 0.10491071428571429,
+    "retained_mauc": 0.7239608111823073,
+    "retained_cov95": 0.011160714285714286,
+    "retained_ratio_mauc": 0.89682451603911,
+    "retained_ratio_cov95": 0.10638297872340426,
+    "forge_tax_mauc": 0.0832883197622083,
+    "reconstruction_ve": -1536.5296630859375
+  },
+  "per_tier": {
+    "hierarchical": {
+      "n_scored": 1344,
+      "pre_forge_mauc": 0.8072491309445156,
+      "pre_forge_cov95": 0.10491071428571429,
+      "retained_mauc": 0.7239608111823073,
+      "retained_cov95": 0.011160714285714286,
+      "retained_ratio": 0.89682451603911,
+      "forge_tax_mauc": 0.0832883197622083
+    }
+  },
+  "per_source": {
+    "ec": {
+      "n_scored": 69,
+      "pre_forge_mauc": 0.8100210822516712,
+      "pre_forge_cov95": 0.07246376811594203,
+      "retained_mauc": 0.7013754699716723,
+      "retained_cov95": 0.014492753623188406,
+      "retained_ratio": 0.865873105453022,
+      "forge_tax_mauc": 0.10864561227999892
+    },
+    "go": {
+      "n_scored": 1140,
+      "pre_forge_mauc": 0.7885657353326114,
+      "pre_forge_cov95": 0.03684210526315789,
+      "retained_mauc": 0.7145113119161011,
+      "retained_cov95": 0.005263157894736842,
+      "retained_ratio": 0.9060897270849909,
+      "forge_tax_mauc": 0.07405442341651036
+    },
+    "pfam": {
+      "n_scored": 135,
+      "pre_forge_mauc": 0.9636032521102708,
+      "pre_forge_cov95": 0.6962962962962963,
+      "retained_mauc": 0.815300201604595,
+      "retained_cov95": 0.05925925925925926,
+      "retained_ratio": 0.8460953196443711,
+      "forge_tax_mauc": 0.14830305050567572
+    }
+  }
+}

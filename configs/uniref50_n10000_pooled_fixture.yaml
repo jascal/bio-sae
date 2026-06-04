@@ -1,0 +1,17 @@
+# Pooled SAE for the n=10000 whole-loop run.
+# Single TopK w=1024 k=64 pooled SAE on the n=10000 UniRef50 bundle.
+# Parallels uniref50_n5000_pooled_fixture.yaml; run dir auto-names to
+# runs/bio_bundle_uniref50_n10000__pooled__topk_w1024_k64.
+bundle: data/bio_bundle_uniref50_n10000.safetensors
+
+feeds: [pooled]
+variants: [topk]
+widths: [1024]
+k_values: [64]
+sparsity_lambdas: [1.0e-3]
+
+epochs: 200
+batch_size: 4096
+lr: 1.0e-3
+seed: 0
+device: cuda

@@ -125,6 +125,20 @@ First end-to-end run of the whole loop on a real foundation model
 This confirms the `SUPERVISION_DEPENDENCE.md` prediction: the sharp, high-AUC
 features (Pfam) are the fragile ones under the round-trip.
 
+### Confirmed at n=10000 (robust band)
+
+Re-run on the freshly-built `bio_bundle_uniref50_n10000` (10k proteins → **1344**
+robust hierarchical features vs 808 at n5000), with a 10k-trained pooled SAE
+compressed 1024→689 (`runs/whole_loop_n10000_summary.json`):
+
+- **mAUC tax is stable** — retained 89.7% (vs 91.0% at n5000).
+- **The cov95 collapse is now on a real population.** Host cov95 rose to 0.105
+  (from 0.068); the forge keeps only ~11% of it (→ 0.011). **Pfam** — now a
+  135-feature population (not 47) — collapses cov95 **0.696 → 0.059** (~92% of
+  its sharp features destroyed) while keeping 85% of its mAUC. The "mAUC
+  survives, cov95 collapses, Pfam is the casualty" pattern is not a small-sample
+  artifact.
+
 *Note: bio-sae does not use OpenSpec; this scope lives as a doc rather than an
 `openspec/changes/` proposal (OpenSpec is reserved for the repos that already use
 it — n-orca, polygram, q-orca-lang, sae-forge, sm-sae).*
