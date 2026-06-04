@@ -226,6 +226,66 @@ def _filter_features_by_prevalence(Y, min_n_pos: int):
     return Y[:, kept], kept
 
 
+def _default_labels_path(bundle: Path) -> Path:
+    """The labels-vocab parquet that ships beside a bundle.
+
+    bio_bundle_uniref50[_n100].safetensors → bio_labels_uniref50[_n100].parquet.
+    """
+    return bundle.with_name(
+        bundle.name.replace("bio_bundle", "bio_labels").replace(".safetensors", ".parquet")
+    )
+
+
+def _feature_labels(labels_path: Path, feed: str, n_cols: int):
+    """Per-column (tier, source) labels aligned to the scored Y matrix.
+
+    The labels parquet is the bundle's serialized vocab sidecar: its
+    per-scope rows are in the same column order as ``labels_<scope>_Y``
+    (residue: aa→charge→ss3; protein: go→pfam→ec, both sorted within group).
+    'pooled' scores protein-scope features (tier ``hierarchical``); 'residue'
+    scores residue-scope (``categorical``/``positional``). ``source`` sub-labels
+    each feature by its name prefix (go/pfam/ec/aa/charge/ss3) — the useful
+    split when a whole feed collapses to one tier (the pooled case).
+
+    Raises if the parquet's scope rows don't line up with the Y columns, so a
+    silently-misaligned breakdown can't slip through.
+    """
+    import pandas as pd
+
+    scope = "protein" if feed == "pooled" else "residue"
+    df = pd.read_parquet(labels_path)
+    sub = df[df["scope"] == scope].reset_index(drop=True)
+    if len(sub) != n_cols:
+        raise ValueError(
+            f"label/column misalignment: {labels_path.name} has {len(sub)} "
+            f"{scope}-scope rows but Y has {n_cols} columns"
+        )
+    tiers = sub["tier"].astype(str).tolist()
+    sources = [str(name).split(":", 1)[0] for name in sub["name"]]
+    return tiers, sources
+
+
+def _grouped(host_auc, groups, forge_auc=None) -> dict:
+    """Per-group metrics. Host-only when ``forge_auc`` is None; otherwise adds
+    forged mAUC/cov95, retained ratio, and the per-group forge tax."""
+    from biosae.sae.evaluation import tier_breakdown
+
+    h_cov, h_mauc = tier_breakdown(host_auc, groups)
+    f_cov, f_mauc = (tier_breakdown(forge_auc, groups) if forge_auc is not None
+                     else ({}, {}))
+    out: dict = {}
+    for g in sorted(h_mauc):
+        rec = {"n_scored": int(sum(1 for x in groups if x == g)),
+               "host_mauc": h_mauc[g], "host_cov95": h_cov[g]}
+        if forge_auc is not None and g in f_mauc:
+            rec["forged_mauc"] = f_mauc[g]
+            rec["forged_cov95"] = f_cov[g]
+            rec["retained_mauc"] = (f_mauc[g] / h_mauc[g]) if h_mauc[g] else None
+            rec["forge_tax_mauc"] = h_mauc[g] - f_mauc[g]
+        out[g] = rec
+    return out
+
+
 def _score_sae(sae, X, Y, latent_chunk: int = 512):
     """Thin wrapper around biosae's scorer."""
     from biosae.sae.evaluation import score_against_ground_truth
@@ -241,6 +301,11 @@ def main(argv: list[str] | None = None) -> dict:
                         help="bio_bundle safetensors path (activations + labels)")
     parser.add_argument("--sequences", type=Path, required=True,
                         help="Parquet with 'sequence' column for re-extraction")
+    parser.add_argument("--labels", type=Path, default=None,
+                        help="Labels-vocab parquet (the bundle's serialized "
+                             "tier/scope sidecar). Defaults to the bundle path "
+                             "with bio_bundle→bio_labels and .safetensors→"
+                             ".parquet. Used for the per-tier breakdown.")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--host-model", default="facebook/esm2_t6_8M_UR50D")
     parser.add_argument("--widths", default="16,64,128",
@@ -321,11 +386,19 @@ def main(argv: list[str] | None = None) -> dict:
                                         sequences_n=len(sequences))
     print(f"      feed={args.feed!r}, label slice: {Y_subset.shape}")
 
+    # Per-column tier/source labels, aligned to Y *before* any filtering.
+    labels_path = args.labels or _default_labels_path(args.bundle)
+    tiers, sources = _feature_labels(labels_path, args.feed, Y_subset.shape[1])
+
     # Optional prevalence filter (drops singleton/near-singleton GT
     # features; matches the README's "robust" band when min_n_pos=10).
+    # Subset the tier/source labels by the same survivors so they stay
+    # column-aligned with the scored per_feature_best_auc.
     if args.min_n_pos > 0:
         before = Y_subset.shape[1]
-        Y_subset, _kept = _filter_features_by_prevalence(Y_subset, args.min_n_pos)
+        Y_subset, kept = _filter_features_by_prevalence(Y_subset, args.min_n_pos)
+        tiers = [tiers[i] for i in kept]
+        sources = [sources[i] for i in kept]
         print(f"      prevalence filter n_pos≥{args.min_n_pos}: "
               f"{before} → {Y_subset.shape[1]} features")
 
@@ -341,6 +414,7 @@ def main(argv: list[str] | None = None) -> dict:
 
     print(f"[3b]  scoring host baseline")
     host_metrics = _score_sae(sae, host_X, Y_subset)
+    host_auc = host_metrics["per_feature_best_auc"]
     print(f"      host_baseline: VE={host_metrics['variance_explained']:.3f}, "
           f"mAUC={host_metrics['mean_best_auc']:.3f}, "
           f"cov95={host_metrics['coverage_at_0.95']:.3f}")
@@ -348,6 +422,7 @@ def main(argv: list[str] | None = None) -> dict:
     summary = {
         "run": str(args.run),
         "bundle": str(args.bundle),
+        "labels": str(labels_path),
         "host_model": args.host_model,
         "n_proteins": len(sequences),
         "d_model": d_model,
@@ -356,8 +431,9 @@ def main(argv: list[str] | None = None) -> dict:
         "min_n_pos": args.min_n_pos,
         "n_features_scored": int(Y_subset.shape[1]),
         "host_baseline": {
-            k: v for k, v in host_metrics.items()
-            if k != "per_feature_best_auc"
+            **{k: v for k, v in host_metrics.items() if k != "per_feature_best_auc"},
+            "per_tier": _grouped(host_auc, tiers),
+            "per_source": _grouped(host_auc, sources),
         },
         "forge": [],
     }
@@ -401,6 +477,7 @@ def main(argv: list[str] | None = None) -> dict:
             / max(host_metrics["coverage_at_0.95"], 1e-9)
         )
 
+        forge_auc = forge_metrics["per_feature_best_auc"]
         row = {
             "n_features": n,
             "variance_explained": forge_metrics["variance_explained"],
@@ -408,6 +485,8 @@ def main(argv: list[str] | None = None) -> dict:
             "coverage_at_0.95": forge_metrics["coverage_at_0.95"],
             "retained_mauc_vs_host": retained_mauc,
             "retained_cov95_vs_host": retained_cov95,
+            "per_tier": _grouped(host_auc, tiers, forge_auc),
+            "per_source": _grouped(host_auc, sources, forge_auc),
             "forge_wall_s": round(forge_wall, 2),
             "extract_wall_s": round(extract_wall, 2),
             "score_wall_s": round(score_wall, 2),
@@ -432,6 +511,22 @@ def main(argv: list[str] | None = None) -> dict:
         print(f"  n={row['n_features']:>4d}:  "
               f"mAUC={row['mean_best_auc']:.3f} ({row['retained_mauc_vs_host']*100:5.1f}%)  "
               f"cov95={row['coverage_at_0.95']:.3f} ({row['retained_cov95_vs_host']*100:5.1f}%)")
+
+    # Per-tier / per-source breakdown of the widest forge — which biology
+    # carries the forge tax.
+    if summary["forge"]:
+        widest = summary["forge"][-1]
+        for label, key in (("tier", "per_tier"), ("source", "per_source")):
+            print(f"\n  per-{label} mAUC (forge @ n={widest['n_features']}):  "
+                  f"host → forged (retained, tax)")
+            for g, rec in widest[key].items():
+                fm = rec.get("forged_mauc")
+                if fm is None:
+                    print(f"    {g:<14s} n={rec['n_scored']:<5d} {rec['host_mauc']:.3f} → —")
+                    continue
+                print(f"    {g:<14s} n={rec['n_scored']:<5d} "
+                      f"{rec['host_mauc']:.3f} → {fm:.3f} "
+                      f"({rec['retained_mauc']*100:5.1f}%, {rec['forge_tax_mauc']:+.3f})")
 
     return summary
 

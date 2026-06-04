@@ -116,6 +116,35 @@ def score_against_ground_truth(
     }
 
 
+def tier_breakdown(
+    per_feature_auc: Iterable[float],
+    groups: Iterable[str],
+) -> tuple[dict, dict]:
+    """Group per-feature best-AUCs by a column-aligned label list.
+
+    `groups` is one label per scored feature (a tier like ``hierarchical``,
+    or a source like ``go``/``pfam``/``ec``) in the same column order as
+    ``per_feature_auc``. Returns ``(coverage_at_0.95_by_group,
+    mean_best_auc_by_group)``. NaN AUCs (invalid features) are skipped, so a
+    group whose features are all invalid is absent from the result.
+
+    Mirrors the local helper in scripts/synthetic_floor_experiment.py,
+    promoted here so forge/capability scoring can reuse it.
+    """
+    by_group: dict[str, list[float]] = {}
+    for auc, g in zip(per_feature_auc, groups):
+        if auc is None or (isinstance(auc, float) and np.isnan(auc)):
+            continue
+        by_group.setdefault(g, []).append(float(auc))
+    cov: dict[str, float] = {}
+    mauc: dict[str, float] = {}
+    for g, aucs in by_group.items():
+        arr = np.array(aucs)
+        cov[g] = float((arr >= 0.95).mean())
+        mauc[g] = float(arr.mean())
+    return cov, mauc
+
+
 # ---------------------------------------------------------------------------
 # Occurrence-level scoring (supervised-JEPA Phase 0)
 # ---------------------------------------------------------------------------
