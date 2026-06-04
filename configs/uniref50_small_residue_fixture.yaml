@@ -1,0 +1,16 @@
+# Minimal residue SAE for the forge capability-acceptance fixture.
+# Single TopK w=1024 k=32 residue SAE on the n=100 UniRef50 bundle.
+# Output run dir is renamed to runs/uniref50_small/residue afterward.
+bundle: data/bio_bundle_uniref50_n100.safetensors
+
+feeds: [residue]
+variants: [topk]
+widths: [1024]
+k_values: [32]
+sparsity_lambdas: [1.0e-3]
+
+epochs: 200
+batch_size: 4096
+lr: 1.0e-3
+seed: 0
+device: cuda
