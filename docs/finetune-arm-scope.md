@@ -112,11 +112,30 @@ from the geometrically-faithful init re-learns the sharp features the projection
 dropped. Two caveats: (1) **non-monotonic** — 100 steps is *worse* than 0 (the
 model moves off the basis before re-converging), so enough steps matter; (2)
 **not saturated** — cov95 is still climbing at 500 and well below host (Pfam 0.191
-vs 0.681), so a longer sweep (1000/2000) is needed to find the ceiling and whether
-it fully closes.
+vs 0.681), so a longer sweep was run to find the ceiling.
 
-**Implication:** the forge tax is gradient-correctable → the runtime-MoE play
-(pinned idea b) is no longer *forced*, though it may still help/be cheaper.
+### Ceiling (0→2000 steps; `runs/finetune_sweep_long_n10000_summary.json`)
+
+| ft steps | overall mAUC (ret) | overall cov95 (ret) | Pfam mAUC (ret) | Pfam cov95 |
+|---|---|---|---|---|
+| 0 | 0.710 (91%) | 0.003 (4%) | 0.809 (84%) | 0.043 |
+| 500 | 0.738 (94%) | 0.006 (11%) | 0.843 (88%) | 0.085 |
+| 1000 | 0.751 (**96%**) | 0.010 (18%) | 0.865 (90%) | 0.170 |
+| 2000 | 0.753 (96%) | 0.009 (16%) | 0.867 (90%) | 0.106 |
+
+**The tax splits.** mAUC recovers and **plateaus at ~96% retained** by ~1000 steps
+(residual ~4%) — distillation *solves* the mean-discriminability tax. cov95 only
+**partially** recovers and plateaus far below host (Pfam peak ~0.1–0.2 vs host
+0.68; 2000 ≤ 1000) — a **residual sharp-feature floor**. Caveat: cov95 is noisy
+run-to-run on the small Pfam population (this run's @500 Pfam cov95 0.085 vs the
+short sweep's 0.191) — read it as a band, not a point; a multi-seed average would
+firm the ceiling.
+
+**Implication (corrected):** the *mAUC* half of the forge tax is gradient-
+correctable; the *cov95* (sharp-feature) half is a **residual floor** fine-tune
+does not close. That residual **re-opens the runtime-MoE play** (pinned idea b) —
+a routed sharp-feature expert is the candidate for the part distillation can't
+reach ("lossless at fixed runtime cost, not fixed param count").
 
 *Note: bio-sae does not use OpenSpec; this scope lives as a doc (OpenSpec is
 reserved for the repos that already use it).*
