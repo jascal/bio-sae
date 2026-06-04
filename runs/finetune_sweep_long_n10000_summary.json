@@ -1,0 +1,53 @@
+{
+  "experiment": "longer fine-tune sweep (0/500/1000/2000) on the n10000 closed loop",
+  "host_baseline": {
+    "mauc": 0.7823469173258126,
+    "cov95": 0.05660377358490566
+  },
+  "pfam_host_cov95": 0.6808510638297872,
+  "verdict": "mAUC recovers and plateaus ~96% retained by 1000 steps; cov95 only partially recovers (Pfam peak ~0.17 vs host 0.68) and plateaus far below host -> residual sharp-feature hard floor. cov95 is noisy run-to-run (small Pfam population). Promotes the runtime-MoE play for the residual.",
+  "finetune": {
+    "checkpoints": [
+      0,
+      500,
+      1000,
+      2000
+    ],
+    "lr": 0.0005,
+    "corpus_size": 512
+  },
+  "trajectory": [
+    {
+      "finetune_steps": 0,
+      "overall_mauc": 0.7097848329547313,
+      "overall_retained_mauc": 0.9072507569671135,
+      "overall_cov95": 0.0025157232704402514,
+      "pfam_mauc": 0.8093822770428754,
+      "pfam_cov95": 0.0425531914893617
+    },
+    {
+      "finetune_steps": 500,
+      "overall_mauc": 0.7377141536516697,
+      "overall_retained_mauc": 0.9429501635582526,
+      "overall_cov95": 0.006289308176100629,
+      "pfam_mauc": 0.8429389425423257,
+      "pfam_cov95": 0.0851063829787234
+    },
+    {
+      "finetune_steps": 1000,
+      "overall_mauc": 0.7508197830984699,
+      "overall_retained_mauc": 0.9597018489762731,
+      "overall_cov95": 0.010062893081761006,
+      "pfam_mauc": 0.8654145820191095,
+      "pfam_cov95": 0.1702127659574468
+    },
+    {
+      "finetune_steps": 2000,
+      "overall_mauc": 0.7527850113974096,
+      "overall_retained_mauc": 0.9622138142635618,
+      "overall_cov95": 0.00880503144654088,
+      "pfam_mauc": 0.8668655967690434,
+      "pfam_cov95": 0.10638297872340426
+    }
+  ]
+}
