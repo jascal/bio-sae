@@ -309,7 +309,17 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--host-model", default="facebook/esm2_t6_8M_UR50D")
     parser.add_argument("--widths", default="16,64,128",
-                        help="Comma-separated basis widths to forge at")
+                        help="Comma-separated basis widths to forge at "
+                             "(row-norm slices). Ignored when --compressed-sae "
+                             "is given.")
+    parser.add_argument("--compressed-sae", type=Path, default=None,
+                        help="Path to a polygram-compressed SAE safetensors "
+                             "(produced by scripts/forge_pipeline.py --mode "
+                             "polygram). When set, the scored forge is built "
+                             "from this compressed basis — the whole-loop path "
+                             "(SAE→polygram→forge→rescore) — instead of a "
+                             "row-norm slice. Decoding uses the compressed "
+                             "basis's own W_dec/kept_ids.")
     parser.add_argument("--n-proteins", type=int, default=10,
                         help="Held-out protein count for the eval (smoke=10)")
     parser.add_argument("--sae-variant", default="topk", choices=("topk", "jumprelu", "l1"))
@@ -438,15 +448,37 @@ def main(argv: list[str] | None = None) -> dict:
         "forge": [],
     }
 
-    widths = [int(w.strip()) for w in args.widths.split(",") if w.strip()]
-    for n in widths:
-        if n > sae_width:
-            print(f"[skip] width {n} > SAE width {sae_width}")
-            continue
-        print(f"\n[4/6 width={n}] slicing SAE → forging → re-extracting")
+    # Build the bases to evaluate. Either the polygram-COMPRESSED basis
+    # (whole-loop: the forge that gets re-scored is the compressed one) or a
+    # row-norm SLICE per --widths value (the compression-free baseline).
+    # Each entry: (label, basis, W_dec_np, mode); W_dec_np is the matrix used
+    # to decode forged hidden states back to d_model — for the compressed
+    # path this is the compressed basis's own (kept/merged) W_dec.
+    bases = []
+    if args.compressed_sae is not None:
+        from saeforge.basis import FeatureBasis
+        cbasis = FeatureBasis.from_polygram_checkpoint(args.compressed_sae)
+        if cbasis.n_features == 0:
+            raise RuntimeError(
+                f"{args.compressed_sae} kept 0 features; relax the polygram "
+                f"compression (coverage_target / max_iterations)"
+            )
+        bases.append((cbasis.n_features, cbasis,
+                      np.asarray(cbasis.W_dec, dtype=np.float32), "polygram"))
+        print(f"[4/6] polygram-compressed basis: n_features="
+              f"{cbasis.n_features} (kept of {sae_width}); --widths ignored")
+    else:
+        for n in [int(w.strip()) for w in args.widths.split(",") if w.strip()]:
+            if n > sae_width:
+                print(f"[skip] width {n} > SAE width {sae_width}")
+                continue
+            W_dec_slice, kept_ids, norms = _slice_sae_basis(sae, n)
+            bases.append((n, _build_basis(W_dec_slice, kept_ids, norms),
+                          W_dec_slice.astype(np.float32), "slice"))
 
-        W_dec_slice, kept_ids, norms = _slice_sae_basis(sae, n)
-        basis = _build_basis(W_dec_slice, kept_ids, norms)
+    for n_label, basis, W_dec_np, mode in bases:
+        print(f"\n[4/6 {mode} n={n_label}] forging → re-extracting → scoring")
+
         t0 = time.monotonic()
         forged_module, _host_again = _forge(
             basis, args.host_model, args.device, scale_boost,
@@ -459,10 +491,10 @@ def main(argv: list[str] | None = None) -> dict:
         )
         extract_wall = time.monotonic() - t0
 
-        # Decode forged hidden states (in basis coords) back to host's
-        # d_model so the existing SAE can encode them. forged_h is
-        # (Nres, n), W_dec is (n, d), so decoded is (Nres, d).
-        W_dec_t = torch.from_numpy(W_dec_slice.astype(np.float32))
+        # Decode forged hidden states (basis coords) back to host d_model via
+        # the SAME basis's W_dec, so the original SAE can encode them.
+        # forged_h is (Nres, n), W_dec_np is (n, d) → decoded (Nres, d).
+        W_dec_t = torch.from_numpy(W_dec_np)
         forged_decoded = forged_h.float() @ W_dec_t  # (Nres, d_model)
 
         t0 = time.monotonic()
@@ -479,7 +511,8 @@ def main(argv: list[str] | None = None) -> dict:
 
         forge_auc = forge_metrics["per_feature_best_auc"]
         row = {
-            "n_features": n,
+            "n_features": int(basis.n_features),
+            "mode": mode,
             "variance_explained": forge_metrics["variance_explained"],
             "mean_best_auc": forge_metrics["mean_best_auc"],
             "coverage_at_0.95": forge_metrics["coverage_at_0.95"],
@@ -491,7 +524,7 @@ def main(argv: list[str] | None = None) -> dict:
             "extract_wall_s": round(extract_wall, 2),
             "score_wall_s": round(score_wall, 2),
         }
-        print(f"      forged@n={n}: VE={row['variance_explained']:.3f}, "
+        print(f"      {mode}@n={basis.n_features}: VE={row['variance_explained']:.3f}, "
               f"mAUC={row['mean_best_auc']:.3f}, "
               f"cov95={row['coverage_at_0.95']:.3f}  "
               f"retained: mAUC={retained_mauc*100:.1f}% "
