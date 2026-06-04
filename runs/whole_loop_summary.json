@@ -1,0 +1,63 @@
+{
+  "loop": "SAE \u2192 polygram compress \u2192 forge ESM-2 \u2192 per-tier capability re-score",
+  "run": "runs/uniref50_n5000/pooled_w1024_k64",
+  "host_model": "facebook/esm2_t6_8M_UR50D",
+  "feed": "pooled",
+  "n_proteins": 5000,
+  "min_n_pos": 10,
+  "sae_width": 1024,
+  "n_features_scored": 808,
+  "forge_mode": "polygram",
+  "forge_basis_n_features": 666,
+  "compression": null,
+  "overall": {
+    "pre_forge_mauc": 0.7845841791683047,
+    "pre_forge_cov95": 0.06806930693069307,
+    "retained_mauc": 0.7138964001067263,
+    "retained_cov95": 0.01608910891089109,
+    "retained_ratio_mauc": 0.909904149308095,
+    "retained_ratio_cov95": 0.23636363636363636,
+    "forge_tax_mauc": 0.07068777906157842,
+    "reconstruction_ve": -790.697509765625
+  },
+  "per_tier": {
+    "hierarchical": {
+      "n_scored": 808,
+      "pre_forge_mauc": 0.7845841791683047,
+      "pre_forge_cov95": 0.06806930693069307,
+      "retained_mauc": 0.7138964001067263,
+      "retained_cov95": 0.01608910891089109,
+      "retained_ratio": 0.909904149308095,
+      "forge_tax_mauc": 0.07068777906157842
+    }
+  },
+  "per_source": {
+    "ec": {
+      "n_scored": 40,
+      "pre_forge_mauc": 0.7954626137611769,
+      "pre_forge_cov95": 0.15,
+      "retained_mauc": 0.7091970887697345,
+      "retained_cov95": 0.075,
+      "retained_ratio": 0.8915530114186586,
+      "forge_tax_mauc": 0.08626552499144235
+    },
+    "go": {
+      "n_scored": 721,
+      "pre_forge_mauc": 0.7723076610230154,
+      "pre_forge_cov95": 0.020804438280166437,
+      "retained_mauc": 0.7080323364483115,
+      "retained_cov95": 0.011095700416088766,
+      "retained_ratio": 0.9167749747690404,
+      "forge_tax_mauc": 0.06427532457470386
+    },
+    "pfam": {
+      "n_scored": 47,
+      "pre_forge_mauc": 0.9636529493606152,
+      "pre_forge_cov95": 0.723404255319149,
+      "retained_mauc": 0.8078530458768693,
+      "retained_cov95": 0.0425531914893617,
+      "retained_ratio": 0.8383236375843407,
+      "forge_tax_mauc": 0.15579990348374584
+    }
+  }
+}
