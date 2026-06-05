@@ -168,3 +168,76 @@ operating point, not just an oracle ceiling. Open fork (unchanged): read the hea
 off the **retained host trunk** (simple; keeps the trunk) vs a **protected linear
 skip channel** in the forged model (standalone; needs a sae-forge change). The cost
 is now concrete: **+160 dims + the host trunk read** for full host-tier cov95.
+
+## P2 — label-free preserve selection (does the forge need labels to pick the set?)
+
+P1's selector was **host Pfam strength** — it uses ground-truth labels. For the
+forge to pick the preserve-set **automatically** (no labels at forge time), a
+**label-free** atom score must reproduce the oracle set. P2 swaps the selector and
+re-runs P1's held-out validation; the dispositive metric is the **held-out cov95-vs-K
+curve**, not mere ranking agreement.
+
+Label-free proxies (per atom, computed on **train activations only**):
+
+- **fragility** — `1 − corr(z_host[:,j], z_forged[:,j])`: how much the forge breaks
+  atom j's readout. The forge-native hypothesis: the atoms worth preserving are
+  exactly the ones the forge smears.
+- **selectivity** — `1 − activation-rate(z_host[:,j])`: sharp/specific detectors
+  fire on few proteins.
+- **fragility × selectivity** (percentile-combined).
+- **decoder-norm** (the existing row-norm slice proxy) — baseline.
+- **random** — floor (over valid atoms).
+- **oracle** (host Pfam strength, labels) — reference.
+
+Protocol: select top-K by each proxy on 3000 train (label-free proxies use only
+activations), validate held-out Pfam cov95 on 7000 eval, 3 seeds. Also report
+Spearman(proxy, oracle) and top-160 overlap (Jaccard).
+
+Bands at K=160 (oracle 0.716, host 0.717) *(proposed)*:
+
+| held-out cov95@160 | reads |
+|---|---|
+| **≥ 0.68** | matches oracle within noise → **the forge can auto-select label-free**; build it in. |
+| 0.60–0.68 | viable proxy; report the gap. |
+| 0.40–0.60 | partial — beats norm/random but needs labels for the last stretch. |
+| **< 0.40** (≈ norm/random) | label-free selection fails on this signal; preserve needs labels or a better proxy. |
+
+### P2 result — label-free selection FAILS (every proxy ≤ random)
+
+`scripts/forge_label_free_select.py`, `runs/label_free_select_n10000_summary.json`,
+n=10000, 3 seeds. Held-out Pfam cov95 @ K=160 / top-160 overlap with oracle /
+Spearman vs oracle:
+
+| selector | cov95@160 | overlap@160 | ρ vs oracle |
+|---|---|---|---|
+| **oracle** (labels) | **0.716** | 1.00 | 1.00 |
+| random (floor) | 0.485 | 0.22 | −0.00 |
+| norm (row-norm) | 0.462 | 0.23 | −0.11 |
+| frag×sel | 0.275 | 0.16 | −0.14 |
+| **fragility** | 0.251 | 0.08 | −0.11 |
+| **selectivity** | 0.126 | 0.06 | −0.26 |
+
+**Verdict: FAILS.** Every proposed label-free proxy lands **at or below the random
+floor** (0.485), with near-zero/negative correlation to the oracle. Worse,
+`fragility` and `selectivity` are **anti-informative** (cov95 *below* random): the
+most forge-broken atoms are **not** the Pfam readers (N1 already showed the haircut
+is broad/uniform, so "most broken" selects diffuse/noise atoms), and the
+rarest-firing atoms are junk, not the moderately-common Pfam readers. `norm` (the
+existing `_slice_sae_basis` heuristic) is no better than random for this purpose.
+
+**Implication for forge design.** "Which atoms are worth preserving" is a
+**label-defined** property — it is *which features carry the biology you care
+about* — and activation statistics alone cannot recover it. So preserve-set
+selection is a **forge-time supervised step**, not a free label-free one. The
+earlier "fragility is the natural selector" intuition is **falsified**.
+
+- For the **ground-truth-substrate program this is fine**: the substrates are built
+  with *known* feature factorizations, so labels exist by construction — the
+  preserve hybrid is a supervised-forge-time component the instrument already
+  supports.
+- For a **generic label-free deployment forge** it is a real open limitation.
+
+**Constructive next step (P3, not run):** selection needs *labels*, but maybe very
+few — test how small a labelled probe set still picks a preserve-set that reaches
+host cov95 (the oracle here used 3000 train proteins; the floor is likely far
+lower). That bounds the supervision cost of the preserve step.
