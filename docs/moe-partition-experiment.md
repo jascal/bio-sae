@@ -83,6 +83,42 @@ vs the monolith vs host**, all on the same proteins and scorer. The
 `monolith` arm here (full 1024 basis) is the in-script baseline — the
 whole-loop's ~0.06 is the external anchor.
 
+#### Dispositive result (n=10000, 135 Pfam labels, `scale_boost=auto`)
+
+`runs/moe_partition_n10000_summary.json`:
+
+| arm | n_latents | Pfam cov95 (host→forged) | Pfam mAUC (host→forged) |
+|---|---|---|---|
+| host | — | 0.696 | 0.964 |
+| **monolith** | 1024 | 0.696 → **0.052** | 0.964 → **0.825** |
+| **sharp** | 629 | 0.696 → **0.074** | 0.964 → **0.813** |
+| diffuse | 395 | 0.696 → 0.022 | 0.964 → 0.808 |
+
+**Verdict: mostly structural, with a small real dilution effect.** The
+sharp-only forge *does* beat the monolith on Pfam cov95 (0.074 vs 0.052,
++43% relative, ~10 vs ~7 of 135 labels) — so isolating the sharp readers
+recovers *some* of the tax. But it is a sliver: only **~3% of the cov95
+gap to host** (0.644) is closed, both forges sit catastrophically below
+host (0.07 vs 0.70), and the sharp arm is even slightly *worse* in mAUC
+(0.813 < 0.825) — it trades a touch of mean discriminability for a few
+more sharp recoveries. The diffuse (GO-reader) arm does worst on Pfam
+(0.022), confirming the partition is meaningful (Pfam readers concentrate
+in the sharp expert).
+
+So **the cov95 floor is overwhelmingly structural** (intrinsic to
+projecting an over-complete basis through LayerNorm), not dilution. The
+clean "MoE/partitioning is the lever for Reckoning #5's residual" claim is
+**largely falsified** — partitioning recovers a sliver at a small mAUC
+cost, not the floor. This refines the manifesto's "the residual is the
+runtime-MoE target" framing: the runtime-MoE play, in this oracle
+sub-basis form, is *not* the answer to the sharp-feature tax.
+
+**Power caveat (Reckoning #6 in action).** The underpowered n=2000 run
+(only 9 surviving Pfam labels → cov95 quantised to 1/9) showed sharp ==
+monolith (both 0.111) — the *opposite* lean. The signal only resolves at
+n=10000 where the Pfam population is large enough for a fine-grained
+cov95. Small samples lie.
+
 ## Running it
 
 ```bash
