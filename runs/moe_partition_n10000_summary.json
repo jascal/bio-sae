@@ -1,0 +1,222 @@
+{
+  "run": "runs/bio_bundle_uniref50_n10000__pooled__topk_w1024_k64",
+  "bundle": "data/bio_bundle_uniref50_n10000.safetensors",
+  "labels": "data/bio_labels_uniref50_n10000.parquet",
+  "feed": "pooled",
+  "min_n_pos": 10,
+  "sae_width": 1024,
+  "d_model": 320,
+  "monolith_baseline_note": "monolith Pfam cov95 ~0.06 at n=10000 (whole_loop_n10000_summary.json)",
+  "phase_a": {
+    "partition": {
+      "n_latents": 1024,
+      "n_sharp": 629,
+      "n_diffuse": 395,
+      "sharp_pfam_aff_mean": 0.8709073887341352,
+      "sharp_pfam_aff_median": 0.8597387671470642,
+      "sharp_pfam_aff_ge_0.9": 281,
+      "diffuse_pfam_aff_mean": 0.7475070514256441,
+      "n_pfam_labels": 135,
+      "n_other_labels": 1209
+    },
+    "forge_to_moe": {
+      "n_experts": 2,
+      "k_experts": 1,
+      "expert_sizes": [
+        629,
+        395
+      ],
+      "coherence_diagnostic": {
+        "median_intra_cluster_cosine": 0.004562187595703474,
+        "max_intra_cluster_cosine": 0.6436649761641892,
+        "n_intra_cluster_pairs": 275321,
+        "low_coherence": true
+      },
+      "expert_load_sharp_diffuse": [
+        1.0,
+        0.0
+      ],
+      "faithfulness_report": {
+        "routed_vs_flat_mse": 0.006687698420137167,
+        "flat_vs_host_mse": 2.7943506815636225e-15,
+        "ratio": 2393292461200.6685
+      },
+      "over_complete": true,
+      "router_degenerate": true,
+      "interpretation": [
+        "low_coherence: a CAPABILITY partition is not cosine-coherent (sharp latents share function, not direction); the v1 polygram_heuristic router assumes geometric clusters.",
+        "router_degenerate: the summed-activation heuristic routes ~all tokens to one expert, so v1 routing cannot realise a capability split. A capability-aware router is the add-moe-trained-router follow-up. The dispositive Phase B forges do NOT use this router.",
+        "over_complete basis (n_features=1024 > d_model=320): faithfulness_report.ratio is uninformative here (flat recon ~= host -> denominator collapses)."
+      ]
+    }
+  },
+  "phase_b": {
+    "n_proteins": 10000,
+    "host_baseline": {
+      "variance_explained": 0.9393734559416771,
+      "mean_best_auc": 0.8072491309445156,
+      "coverage_at_0.95": 0.10491071428571429
+    },
+    "arms": [
+      {
+        "arm": "monolith",
+        "n_latents": 1024,
+        "mean_best_auc": 0.7294300681070472,
+        "coverage_at_0.95": 0.00818452380952381,
+        "pfam_host_cov95": 0.6962962962962963,
+        "pfam_forged_cov95": 0.05185185185185185,
+        "pfam_host_mauc": 0.9636032521102708,
+        "pfam_forged_mauc": 0.8253685751070452,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 1344,
+            "host_mauc": 0.8072491309445156,
+            "host_cov95": 0.10491071428571429,
+            "forged_mauc": 0.7294300681070472,
+            "forged_cov95": 0.00818452380952381,
+            "retained_mauc": 0.9035996945002385,
+            "forge_tax_mauc": 0.07781906283746831
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 69,
+            "host_mauc": 0.8100210822516712,
+            "host_cov95": 0.07246376811594203,
+            "forged_mauc": 0.7048680466269086,
+            "forged_cov95": 0.014492753623188406,
+            "retained_mauc": 0.870184816261249,
+            "forge_tax_mauc": 0.10515303562476264
+          },
+          "go": {
+            "n_scored": 1140,
+            "host_mauc": 0.7885657353326114,
+            "host_cov95": 0.03684210526315789,
+            "forged_mauc": 0.71955557778874,
+            "forged_cov95": 0.002631578947368421,
+            "retained_mauc": 0.9124864872365226,
+            "forge_tax_mauc": 0.06901015754387141
+          },
+          "pfam": {
+            "n_scored": 135,
+            "host_mauc": 0.9636032521102708,
+            "host_cov95": 0.6962962962962963,
+            "forged_mauc": 0.8253685751070452,
+            "forged_cov95": 0.05185185185185185,
+            "retained_mauc": 0.856543990796529,
+            "forge_tax_mauc": 0.13823467700322556
+          }
+        },
+        "forge_wall_s": 0.92
+      },
+      {
+        "arm": "sharp",
+        "n_latents": 629,
+        "mean_best_auc": 0.7218623323244264,
+        "coverage_at_0.95": 0.01488095238095238,
+        "pfam_host_cov95": 0.6962962962962963,
+        "pfam_forged_cov95": 0.07407407407407407,
+        "pfam_host_mauc": 0.9636032521102708,
+        "pfam_forged_mauc": 0.8132466793449139,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 1344,
+            "host_mauc": 0.8072491309445156,
+            "host_cov95": 0.10491071428571429,
+            "forged_mauc": 0.7218623323244264,
+            "forged_cov95": 0.01488095238095238,
+            "retained_mauc": 0.8942249730016024,
+            "forge_tax_mauc": 0.08538679862008913
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 69,
+            "host_mauc": 0.8100210822516712,
+            "host_cov95": 0.07246376811594203,
+            "forged_mauc": 0.7104748164607737,
+            "forged_cov95": 0.014492753623188406,
+            "retained_mauc": 0.8771065741718944,
+            "forge_tax_mauc": 0.09954626579089754
+          },
+          "go": {
+            "n_scored": 1140,
+            "host_mauc": 0.7885657353326114,
+            "host_cov95": 0.03684210526315789,
+            "forged_mauc": 0.7117297461374318,
+            "forged_cov95": 0.007894736842105263,
+            "retained_mauc": 0.9025623537107268,
+            "forge_tax_mauc": 0.07683598919517964
+          },
+          "pfam": {
+            "n_scored": 135,
+            "host_mauc": 0.9636032521102708,
+            "host_cov95": 0.6962962962962963,
+            "forged_mauc": 0.8132466793449139,
+            "forged_cov95": 0.07407407407407407,
+            "retained_mauc": 0.84396423275235,
+            "forge_tax_mauc": 0.15035657276535686
+          }
+        },
+        "forge_wall_s": 1.02
+      },
+      {
+        "arm": "diffuse",
+        "n_latents": 395,
+        "mean_best_auc": 0.7126536250561601,
+        "coverage_at_0.95": 0.002232142857142857,
+        "pfam_host_cov95": 0.6962962962962963,
+        "pfam_forged_cov95": 0.022222222222222223,
+        "pfam_host_mauc": 0.9636032521102708,
+        "pfam_forged_mauc": 0.8079755659567001,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 1344,
+            "host_mauc": 0.8072491309445156,
+            "host_cov95": 0.10491071428571429,
+            "forged_mauc": 0.7126536250561601,
+            "forged_cov95": 0.002232142857142857,
+            "retained_mauc": 0.8828174571365909,
+            "forge_tax_mauc": 0.09459550588835541
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 69,
+            "host_mauc": 0.8100210822516712,
+            "host_cov95": 0.07246376811594203,
+            "forged_mauc": 0.7022672332661858,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.8669740191379283,
+            "forge_tax_mauc": 0.10775384898548546
+          },
+          "go": {
+            "n_scored": 1140,
+            "host_mauc": 0.7885657353326114,
+            "host_cov95": 0.03684210526315789,
+            "forged_mauc": 0.7019941505052263,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.8902164005504628,
+            "forge_tax_mauc": 0.08657158482738514
+          },
+          "pfam": {
+            "n_scored": 135,
+            "host_mauc": 0.9636032521102708,
+            "host_cov95": 0.6962962962962963,
+            "forged_mauc": 0.8079755659567001,
+            "forged_cov95": 0.022222222222222223,
+            "retained_mauc": 0.8384940214629316,
+            "forge_tax_mauc": 0.1556276861535707
+          }
+        },
+        "forge_wall_s": 0.43
+      }
+    ],
+    "verdict": {
+      "pfam_cov95_monolith": 0.05185185185185185,
+      "pfam_cov95_sharp": 0.07407407407407407,
+      "pfam_cov95_host": 0.6962962962962963,
+      "sharp_beats_monolith": true
+    }
+  }
+}
