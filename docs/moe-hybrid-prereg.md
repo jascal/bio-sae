@@ -172,3 +172,47 @@ A4 (runtime saving real?) ──────────────► the hybr
 
 Each terminal is a distinct, calibrated outcome — there is no "uninformative"
 branch. That is the point of staging it this way.
+
+## Result — A1 (Q1 gate), 2 seeds (2026-06-05)
+
+`scripts/forge_pfam_supervised.py`, n=10000, held-out eval-heavy split (3000
+train / 7000 eval → 92 robust Pfam labels), 1500 steps. Pfam-tier cov95:
+
+| arm | seed 0 | seed 1 | mAUC (s0/s1) |
+|---|---|---|---|
+| host | 0.717 | 0.717 | 0.969 |
+| projection-only | 0.043 | 0.043 | 0.827 |
+| fine-tune label-free (λ=0) | 0.130 | 0.141 | 0.865 / 0.861 |
+| fine-tune supervised (λ=1) | **0.163** | **0.141** | 0.868 / 0.863 |
+| band | partial | sliver | — |
+
+**Verdict: STOP-or-reframe (lean STOP).** The two seeds **straddle the
+sliver/partial boundary** (0.163 / 0.141; mean 0.152), and — decisively —
+**supervision is nearly redundant over label-free distillation**: it added +0.033
+on seed 0 and **+0.000** on seed 1 (mean +0.016, ~5% of the proj→host gap). 73% of
+the recovery is distillation, not labels. So supervision-alone does **not**
+reliably escape the Pfam projection tax — which per the pre-reg licenses *"the tax
+persists through supervised retraining"* and **moots the routing arms** (A2/A3
+route to a specialist that barely out-performs plain distillation). This is the
+sharper, more interesting negative anticipated in the guardrails — **not** "the
+hybrid works."
+
+**Why it floors — the distribution (`scripts/diag_cov_distribution.py`).** cov95
+is a *threshold* metric; plotting per-label best-single-latent AUC shows the
+mechanism. Host sharp detectors are a spike at median **0.993** (66/92 ≥ 0.95);
+the projection-forge applies a broad **~0.15 AUC haircut** (median → **0.831**),
+sliding the mass into **0.80–0.90** — below the 0.95 bar but far from destroyed.
+That is why mAUC barely moves (90% retained) while cov95 craters: a moderate,
+broad smear is invisible to an average and lethal to a threshold. Only ~15/92 land
+in the recoverable **0.90–0.95** near-miss band — exactly what the fine-tune
+harvests before stalling. The diffuse tier has host cov95 just 0.036, so the whole
+cov95 story is the sharp tier. The smear is *broad and roughly uniform* (not
+bimodal) — the signature of the structural LayerNorm/TopK directional distortion,
+now visible.
+
+**What this licenses next.** Not data/routing (supervision and oracle slicing both
+fall short) but **mechanism**: (i) carry the sharp atoms *verbatim, un-forged* (the
+exclude/preserve hybrid — cov95 ≈ host by construction, at a dims/“read-only”
+cost); (ii) a latent-identity-preserving forge objective (per-latent distill +
+decorrelation) aimed at the 0.85–0.95 mass; (iii) attack the named cause directly
+(over-completeness → wider host / whiten; LayerNorm → RMSNorm; TopK → JumpReLU).
