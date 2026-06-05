@@ -1,0 +1,115 @@
+{
+  "experiment": "A1 \u2014 supervised forge fine-tune on Pfam (MoE-hybrid Q1 gate)",
+  "supervised": true,
+  "seed": 0,
+  "n_train": 3000,
+  "n_eval": 7000,
+  "steps": 1500,
+  "lr": 0.0005,
+  "eval_robust_labels": 1041,
+  "eval_robust_pfam": 92,
+  "host_baseline": {
+    "variance_explained": 0.9397953376173973,
+    "mean_best_auc": 0.80003347557596,
+    "coverage_at_0.95": 0.09606147934678194
+  },
+  "host_pfam": {
+    "cov95": 0.717391304347826,
+    "mauc": 0.9693215614527095
+  },
+  "arms": [
+    {
+      "arm": "projection_only",
+      "mean_best_auc": 0.727069133631776,
+      "coverage_at_0.95": 0.007684918347742555,
+      "pfam_host_cov95": 0.717391304347826,
+      "pfam_forged_cov95": 0.043478260869565216,
+      "pfam_host_mauc": 0.9693215614527095,
+      "pfam_forged_mauc": 0.82742752253084,
+      "pfam_n_scored": 92,
+      "per_tier": {
+        "hierarchical": {
+          "n_scored": 1041,
+          "host_mauc": 0.80003347557596,
+          "host_cov95": 0.09606147934678194,
+          "forged_mauc": 0.727069133631776,
+          "forged_cov95": 0.007684918347742555,
+          "retained_mauc": 0.908798388852847,
+          "forge_tax_mauc": 0.072964341944184
+        }
+      },
+      "steps": 0,
+      "lambda_sup": null
+    },
+    {
+      "arm": "finetune_labelfree",
+      "mean_best_auc": 0.7654383698553519,
+      "coverage_at_0.95": 0.020172910662824207,
+      "pfam_host_cov95": 0.717391304347826,
+      "pfam_forged_cov95": 0.13043478260869565,
+      "pfam_host_mauc": 0.9693215614527095,
+      "pfam_forged_mauc": 0.8651095614967351,
+      "pfam_n_scored": 92,
+      "per_tier": {
+        "hierarchical": {
+          "n_scored": 1041,
+          "host_mauc": 0.80003347557596,
+          "host_cov95": 0.09606147934678194,
+          "forged_mauc": 0.7654383698553519,
+          "forged_cov95": 0.020172910662824207,
+          "retained_mauc": 0.9567579272908519,
+          "forge_tax_mauc": 0.0345951057206082
+        }
+      },
+      "steps": 1500,
+      "lambda_sup": 0.0,
+      "distill_first_last": [
+        0.18960250914096832,
+        0.07281903922557831
+      ],
+      "bce_first_last": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "arm": "finetune_lambda1",
+      "mean_best_auc": 0.7678431036048566,
+      "coverage_at_0.95": 0.01921229586935639,
+      "pfam_host_cov95": 0.717391304347826,
+      "pfam_forged_cov95": 0.16304347826086957,
+      "pfam_host_mauc": 0.9693215614527095,
+      "pfam_forged_mauc": 0.868173775052647,
+      "pfam_n_scored": 92,
+      "per_tier": {
+        "hierarchical": {
+          "n_scored": 1041,
+          "host_mauc": 0.80003347557596,
+          "host_cov95": 0.09606147934678194,
+          "forged_mauc": 0.7678431036048566,
+          "forged_cov95": 0.01921229586935639,
+          "retained_mauc": 0.9597637187019844,
+          "forge_tax_mauc": 0.032190371971103415
+        }
+      },
+      "steps": 1500,
+      "lambda_sup": 1.0,
+      "distill_first_last": [
+        0.18960250914096832,
+        0.0745064988732338
+      ],
+      "bce_first_last": [
+        0.6948152780532837,
+        0.02527928352355957
+      ]
+    }
+  ],
+  "verdict": {
+    "pfam_cov95_projection": 0.043478260869565216,
+    "pfam_cov95_labelfree": 0.13043478260869565,
+    "pfam_cov95_supervised": 0.16304347826086957,
+    "pfam_cov95_host": 0.717391304347826,
+    "supervised_band": "partial",
+    "note": "SUPERVISED + held-out; seed-specific; >=2 seeds needed for a headline."
+  }
+}
