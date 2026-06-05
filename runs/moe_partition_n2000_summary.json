@@ -1,0 +1,222 @@
+{
+  "run": "runs/bio_bundle_uniref50_n10000__pooled__topk_w1024_k64",
+  "bundle": "data/bio_bundle_uniref50_n10000.safetensors",
+  "labels": "data/bio_labels_uniref50_n10000.parquet",
+  "feed": "pooled",
+  "min_n_pos": 10,
+  "sae_width": 1024,
+  "d_model": 320,
+  "monolith_baseline_note": "monolith Pfam cov95 ~0.06 at n=10000 (whole_loop_n10000_summary.json)",
+  "phase_a": {
+    "partition": {
+      "n_latents": 1024,
+      "n_sharp": 629,
+      "n_diffuse": 395,
+      "sharp_pfam_aff_mean": 0.8709073887341352,
+      "sharp_pfam_aff_median": 0.8597387671470642,
+      "sharp_pfam_aff_ge_0.9": 281,
+      "diffuse_pfam_aff_mean": 0.7475070514256441,
+      "n_pfam_labels": 135,
+      "n_other_labels": 1209
+    },
+    "forge_to_moe": {
+      "n_experts": 2,
+      "k_experts": 1,
+      "expert_sizes": [
+        629,
+        395
+      ],
+      "coherence_diagnostic": {
+        "median_intra_cluster_cosine": 0.004562187595703474,
+        "max_intra_cluster_cosine": 0.6436649761641892,
+        "n_intra_cluster_pairs": 275321,
+        "low_coherence": true
+      },
+      "expert_load_sharp_diffuse": [
+        1.0,
+        0.0
+      ],
+      "faithfulness_report": {
+        "routed_vs_flat_mse": 0.006687698420137167,
+        "flat_vs_host_mse": 2.7943506815636225e-15,
+        "ratio": 2393292461200.6685
+      },
+      "over_complete": true,
+      "router_degenerate": true,
+      "interpretation": [
+        "low_coherence: a CAPABILITY partition is not cosine-coherent (sharp latents share function, not direction); the v1 polygram_heuristic router assumes geometric clusters.",
+        "router_degenerate: the summed-activation heuristic routes ~all tokens to one expert, so v1 routing cannot realise a capability split. A capability-aware router is the add-moe-trained-router follow-up. The dispositive Phase B forges do NOT use this router.",
+        "over_complete basis (n_features=1024 > d_model=320): faithfulness_report.ratio is uninformative here (flat recon ~= host -> denominator collapses)."
+      ]
+    }
+  },
+  "phase_b": {
+    "n_proteins": 2000,
+    "host_baseline": {
+      "variance_explained": 0.9386348575353622,
+      "mean_best_auc": 0.7592547988018618,
+      "coverage_at_0.95": 0.02099737532808399
+    },
+    "arms": [
+      {
+        "arm": "monolith",
+        "n_latents": 1024,
+        "mean_best_auc": 0.7014587716433494,
+        "coverage_at_0.95": 0.0026246719160104987,
+        "pfam_host_cov95": 0.7777777777777778,
+        "pfam_forged_cov95": 0.1111111111111111,
+        "pfam_host_mauc": 0.9760008663830746,
+        "pfam_forged_mauc": 0.7991179962136457,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 381,
+            "host_mauc": 0.7592547988018618,
+            "host_cov95": 0.02099737532808399,
+            "forged_mauc": 0.7014587716433494,
+            "forged_cov95": 0.0026246719160104987,
+            "retained_mauc": 0.9238779560567584,
+            "forge_tax_mauc": 0.0577960271585124
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 18,
+            "host_mauc": 0.7870932606340753,
+            "host_cov95": 0.05555555555555555,
+            "forged_mauc": 0.6742315391623709,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.8566094678783249,
+            "forge_tax_mauc": 0.11286172147170437
+          },
+          "go": {
+            "n_scored": 354,
+            "host_mauc": 0.7523287905498539,
+            "host_cov95": 0.0,
+            "forged_mauc": 0.700360345551612,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.9309232271168836,
+            "forge_tax_mauc": 0.051968444998241936
+          },
+          "pfam": {
+            "n_scored": 9,
+            "host_mauc": 0.9760008663830746,
+            "host_cov95": 0.7777777777777778,
+            "forged_mauc": 0.7991179962136457,
+            "forged_cov95": 0.1111111111111111,
+            "retained_mauc": 0.8187677119335636,
+            "forge_tax_mauc": 0.17688287016942894
+          }
+        },
+        "forge_wall_s": 0.72
+      },
+      {
+        "arm": "sharp",
+        "n_latents": 629,
+        "mean_best_auc": 0.6943512297820501,
+        "coverage_at_0.95": 0.0026246719160104987,
+        "pfam_host_cov95": 0.7777777777777778,
+        "pfam_forged_cov95": 0.1111111111111111,
+        "pfam_host_mauc": 0.9760008663830746,
+        "pfam_forged_mauc": 0.7893660851717161,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 381,
+            "host_mauc": 0.7592547988018618,
+            "host_cov95": 0.02099737532808399,
+            "forged_mauc": 0.6943512297820501,
+            "forged_cov95": 0.0026246719160104987,
+            "retained_mauc": 0.9145167483666453,
+            "forge_tax_mauc": 0.06490356901981165
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 18,
+            "host_mauc": 0.7870932606340753,
+            "host_cov95": 0.05555555555555555,
+            "forged_mauc": 0.7043842285551806,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.8949183836077251,
+            "forge_tax_mauc": 0.08270903207889468
+          },
+          "go": {
+            "n_scored": 354,
+            "host_mauc": 0.7523287905498539,
+            "host_cov95": 0.0,
+            "forged_mauc": 0.6914254453853739,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.9190469035221055,
+            "forge_tax_mauc": 0.06090334516448004
+          },
+          "pfam": {
+            "n_scored": 9,
+            "host_mauc": 0.9760008663830746,
+            "host_cov95": 0.7777777777777778,
+            "forged_mauc": 0.7893660851717161,
+            "forged_cov95": 0.1111111111111111,
+            "retained_mauc": 0.8087760086699499,
+            "forge_tax_mauc": 0.18663478121135846
+          }
+        },
+        "forge_wall_s": 1.04
+      },
+      {
+        "arm": "diffuse",
+        "n_latents": 395,
+        "mean_best_auc": 0.6973327119759332,
+        "coverage_at_0.95": 0.0,
+        "pfam_host_cov95": 0.7777777777777778,
+        "pfam_forged_cov95": 0.0,
+        "pfam_host_mauc": 0.9760008663830746,
+        "pfam_forged_mauc": 0.7929123794931789,
+        "per_tier": {
+          "hierarchical": {
+            "n_scored": 381,
+            "host_mauc": 0.7592547988018618,
+            "host_cov95": 0.02099737532808399,
+            "forged_mauc": 0.6973327119759332,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.9184436016424994,
+            "forge_tax_mauc": 0.06192208682592859
+          }
+        },
+        "per_source": {
+          "ec": {
+            "n_scored": 18,
+            "host_mauc": 0.7870932606340753,
+            "host_cov95": 0.05555555555555555,
+            "forged_mauc": 0.7197954350939834,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.9144982825975699,
+            "forge_tax_mauc": 0.0672978255400919
+          },
+          "go": {
+            "n_scored": 354,
+            "host_mauc": 0.7523287905498539,
+            "host_cov95": 0.0,
+            "forged_mauc": 0.6937605480669498,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.9221507361959411,
+            "forge_tax_mauc": 0.058568242482904154
+          },
+          "pfam": {
+            "n_scored": 9,
+            "host_mauc": 0.9760008663830746,
+            "host_cov95": 0.7777777777777778,
+            "forged_mauc": 0.7929123794931789,
+            "forged_cov95": 0.0,
+            "retained_mauc": 0.8124095037247288,
+            "forge_tax_mauc": 0.18308848688989565
+          }
+        },
+        "forge_wall_s": 1.24
+      }
+    ],
+    "verdict": {
+      "pfam_cov95_monolith": 0.1111111111111111,
+      "pfam_cov95_sharp": 0.1111111111111111,
+      "pfam_cov95_host": 0.7777777777777778,
+      "sharp_beats_monolith": false
+    }
+  }
+}
