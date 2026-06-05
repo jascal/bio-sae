@@ -30,10 +30,14 @@ Both are training-free and deterministic (no seed dependence).
 
 Baseline: monolith projection-forge, Pfam cov95 **0.043**, median sharp AUC 0.831.
 
-- **OC — over-completeness.** Orthonormalize (Gram–Schmidt) the top-`m` sharp
-  atoms (ranked by host Pfam coverage), `m ≤ 256 < 320`, forge **that rank-safe
-  basis alone**, extract, score Pfam cov95. Removes the over-complete + non-
-  orthonormal confound while keeping the sharp readers.
+- **OC / rank — analytic proxy (no second forge).** The forge already projects to
+  rank ≤ 320 (= host width), so "rank loss" is testable on the *clean host*
+  activation directly: project host-pooled onto the span of the top-`r` decoder
+  atoms (sweep `r ∈ {32…1024}`), reconstruct, re-score Pfam cov95. cov95 robust as
+  `r` shrinks ⇒ rank is **not** the cause (the damage is intra-subspace
+  distortion). cov95 falls with `r` ⇒ the sharp signal needs the full atom set.
+  *(Confirmatory follow-up if rank is implicated: forge a Gram–Schmidt-orthonormal
+  `m ≤ 256` sharp sub-basis.)*
 - **TopK — rank-shuffle.** Re-score the *same* forged activations sweeping the
   SAE encode-k ∈ {64, 128, 256, full}. Pure score-time toggle (≈ free).
 - **LN — per-token renorm (analytic proxy).** Apply one `LayerNorm` to the *clean
@@ -63,6 +67,48 @@ trunk retained (read-only) or can read off the forged stream.
 The three N1 causes are not exclusive; report all three deltas. A clean single
 winner picks the heavy lever; a diffuse result says the haircut is genuinely
 multi-cause and steers toward N2 (route around it) over fixing it.
+
+## Result (n=10000, `scripts/forge_cov_mechanism.py`, `runs/cov_mechanism_n10000_summary.json`)
+
+host Pfam cov95 **0.717** → projection-forge **0.043**. 92 robust Pfam labels.
+
+**N1 — every single knob is exonerated; the haircut is an *emergent forward-pass
+distortion*.**
+
+| probe | result | reading |
+|---|---|---|
+| **rank** | host @ rank-128 = **0.685**, rank-64 = 0.565, rank-32 = 0.533 | The forge keeps **full rank 320** yet scores 0.043, while an honest rank-128 projection of host keeps 0.685. The damage is **not rank loss** — it is *in-subspace distortion*. **Rank/over-completeness exonerated.** |
+| **LayerNorm** | one host LayerNorm = **0.739** (≈ host) | A single normalization does nothing. (Caveat: the forge's *per-layer, basis-coord* LN is not isolated by this host-space proxy — it folds into the emergent bucket.) |
+| **TopK** | forged 0.043 → **0.109** at k=256 → 0.087 dense | Loosening TopK recovers only ~+0.07 (~10% of the gap). **Minor** — a cheap free win, not the cause. |
+
+No isolated component reproduces the collapse: a full-rank, single-LN, looser-TopK
+host still reads 0.6–0.7, but the forge — which *preserves* full rank — reads 0.04.
+By elimination the tax lives in the **compounded re-parameterized forward**
+(attention + repeated basis-coord normalization), distributed, not a single lever.
+⇒ **down-weights single-knob architectural fixes** (RMSNorm-swap / JumpReLU) as
+silver bullets; swapping one knob is unlikely to recover cov95.
+
+**N2 — preserve is cheap and dominant.** Verbatim sharp atoms (host) + forged
+diffuse:
+
+| K verbatim atoms | 10 | 20 | 40 | 80 | 160 | 320 |
+|---|---|---|---|---|---|---|
+| Pfam cov95 | 0.141 | 0.217 | 0.424 | 0.587 | **0.674** | 0.717 |
+
+Knee at **K≈80–160**: preserving 160 of 1024 atoms (**16% of the basis, +160 dims**)
+recovers **94%** of host cov95; K=80 gets 82%. This **beats every trained
+approach** — supervision reached 0.16 (≈ K=10) and the latent-identity objective's
+projected ceiling ~0.4 (≈ K=40). Preserve works precisely *because* it routes
+around the emergent forward distortion that N1 shows is not single-knob-fixable.
+
+**Verdict.** (1) Do **not** chase a single architectural knob — N1 falsifies all
+three as the cause; fold in the free TopK-loosening (+0.07) but expect little more.
+(2) **Build the exclude/preserve hybrid** — N2 makes it the cheapest, highest
+lever, and it is evidence for the manifesto reframe: *forge = faithful mAUC
+computation + a verbatim sparse interpretability head for the sharp tier* (cov95 ≈
+host by construction), at a +~160-dim / read-from-host-trunk cost. (3) The
+latent-identity objective stays a distant second — pursue only if a fully-native
+(no kept-trunk) model is required.
 
 ## Guardrails (Reckoning #6)
 
