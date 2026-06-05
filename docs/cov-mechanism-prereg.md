@@ -110,6 +110,31 @@ host by construction), at a +~160-dim / read-from-host-trunk cost. (3) The
 latent-identity objective stays a distant second — pursue only if a fully-native
 (no kept-trunk) model is required.
 
+## Next: P1 — held-out preserve hybrid (does the N2 knee generalize?)
+
+N2 is an **in-sample ceiling**: it ranks the preserve-set by host Pfam strength and
+scores it on the *same* proteins. P1 makes it honest and an actual operating point:
+
+- **Select** the preserve-set (top-K atoms by host Pfam strength) on a **train**
+  split (head 3000); **validate** combined cov95 **and** mAUC on the **disjoint
+  eval** split (tail 7000) — the A1 split. Sharp atoms read verbatim from the host
+  trunk, diffuse from the forge.
+- **Both tiers** (Pfam + non-Pfam), **≥2 seeds** (re-shuffled train/eval
+  partitions; the forge is deterministic so extract forged latents over all 10000
+  once and re-index per seed).
+- Report the honest cost: K (added dims) + the kept host trunk (read-only head).
+
+Bands at the K≈160 operating point *(proposed)*:
+
+| held-out Pfam cov95 | reads |
+|---|---|
+| **≥ 0.55** | the knee **generalizes** — train-selected atoms transfer; preserve hybrid is real. Build the standalone form next. |
+| 0.40–0.55 | partial — some in-sample selection luck; usable but report the gap to the 0.674 ceiling. |
+| **< 0.40** | the selection **overfit** the scored proteins; the oracle ceiling is not an operating point. Re-think the selection signal. |
+
+mAUC should stay ≈ host (~0.95+) by construction (sharp atoms are verbatim). If it
+does **not**, the diffuse-forged half is dragging it — report per tier.
+
 ## Guardrails (Reckoning #6)
 
 - **n=10000**, `min-n-pos=10`, the **same held-out 7000-tail** eval split as A1
@@ -118,3 +143,28 @@ latent-identity objective stays a distant second — pursue only if a fully-nati
 - **Training-free** ⇒ deterministic; no seed sweep needed for N1/N2 (unlike A1).
 - **Measurement ceiling:** 92 Pfam labels caps cov95 resolution at ~1/92; a lever
   must move the curve well beyond one or two labels to count.
+
+## P1 result — the knee generalizes (`scripts/forge_preserve_hybrid.py`, `runs/preserve_hybrid_n10000_summary.json`)
+
+n=10000, 3 seeds (re-shuffled train/eval partitions), preserve-set selected on
+3000 train, validated on 7000 held-out. **Held-out Pfam cov95 (mean ± std):**
+
+| K | 0 | 40 | 80 | 120 | 160 | 240 | 320 |
+|---|---|---|---|---|---|---|---|
+| cov95 | 0.049 | 0.354 | 0.619 | 0.684 | **0.716 ±0.031** | 0.754 | 0.774 |
+| mAUC | 0.827 | 0.897 | 0.937 | 0.950 | **0.962** | 0.966 | 0.969 |
+
+**Verdict: PASS (≥0.55 band).** Held-out K=160 (16% of the basis, +160 dims) reaches
+**0.716 = host 0.717**, with mAUC at host (0.96). The held-out curve **matches the N2
+in-sample ceiling with no generalization gap** (in-sample K=160 was 0.674) — the
+train-selected preserve-set transfers cleanly. It beats the supervised A1 ceiling
+(0.16) by ~4.5×. (cov95 drifting slightly above host at K≥240 is the max-over-two-
+banks effect — host-sharp ∪ forged-diffuse is a different detector pool than
+host-alone — plus mild held-out noise; read it as "plateaus at host", not "beats
+host".) mAUC rising to host confirms the verbatim-readout "by construction" claim.
+
+**This licenses the standalone build.** The preserve hybrid is validated as an
+operating point, not just an oracle ceiling. Open fork (unchanged): read the head
+off the **retained host trunk** (simple; keeps the trunk) vs a **protected linear
+skip channel** in the forged model (standalone; needs a sae-forge change). The cost
+is now concrete: **+160 dims + the host trunk read** for full host-tier cov95.
